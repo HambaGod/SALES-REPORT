@@ -1,0 +1,13 @@
+{
+  "name": "sales-report-dashboard",
+  "version": "1.0.0",
+  "description": "Dashboard visualisasi data penjualan dengan data real-time dari Google Sheets",
+  "scripts": {
+    "dev": "npx serve -l 4173",
+    "deploy": "vercel --prod"
+  },
+  "dependencies": {
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {}
+}

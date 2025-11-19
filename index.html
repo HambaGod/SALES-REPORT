@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="refresh" content="0; url=login.html">
+  <title>Redirecting...</title>
+</head>
+<body>
+  <script>
+    // Cek jika sudah login, redirect ke dashboard, jika belum ke login
+    if (sessionStorage.getItem('isLoggedIn') === 'true') {
+      window.location.href = 'dashboard.html';
+    } else {
+      window.location.href = 'login.html';
+    }
+  </script>
+  <p>Redirecting...</p>
+</body>
+</html>
+

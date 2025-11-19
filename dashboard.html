@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Visualisasi Data Penjualan</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="dashboard">
+      <header class="dashboard-header">
+        <h1>SALES REPORT LKM</h1>
+        <div style="display: flex; gap: 10px;">
+          <button id="refreshBtn" class="refresh-btn" title="Refresh data dari Google Sheets">
+            <span>🔄</span> Refresh
+          </button>
+          <button id="logoutBtn" class="refresh-btn" title="Logout" style="background: #e74c3c;">
+            <span>🚪</span> Logout
+          </button>
+        </div>
+      </header>
+      <section class="filters-card card">
+        <div class="filter">
+          <label for="monthSelect">Pilih Bulan</label>
+          <select id="monthSelect">
+            <option value="">Loading...</option>
+          </select>
+        </div>
+        <div class="filter">
+          <label for="revenueType">Markeplace/Kemitraan</label>
+          <select id="revenueType">
+            <option value="All">All</option>
+          </select>
+        </div>
+        <div class="filter" style="display: none;">
+          <label for="subCategory">Unit Bisnis</label>
+          <select id="subCategory">
+            <option value="LKM">LKM</option>
+          </select>
+        </div>
+        <input type="hidden" id="startDate" />
+        <input type="hidden" id="endDate" />
+        <div class="filter">
+          <label for="displayMode">Mode Tampilan</label>
+          <select id="displayMode">
+            <option value="light">Light Mode</option>
+            <option value="dark">Dark Mode</option>
+            <option value="wallpaper">Wallpaper</option>
+          </select>
+        </div>
+        <div class="filter">
+          <label for="colorPalette">Color Palette</label>
+          <select id="colorPalette">
+            <option value="1">Palette 1</option>
+            <option value="2">Palette 2</option>
+            <option value="3">Palette 3</option>
+            <option value="4">Palette 4</option>
+          </select>
+        </div>
+      </section>
+
+      <section class="grid">
+        <article class="card lead-lag">
+          <span class="card-number">1</span>
+          <header>
+            <div>
+              <h2>Omset Bersih</h2>
+              <p class="subtitle">Total Omset - Retur/RTS</p>
+            </div>
+            <div class="caption" data-omset-kotor-total></div>
+          </header>
+          <canvas id="omsetKotorChart"></canvas>
+          
+          <div class="chart-separator" style="border-top: 2px solid #e0e0e0; margin: 30px 0; padding-top: 30px;">
+            <header style="margin-bottom: 20px;">
+              <div>
+                <h2>Omset</h2>
+                <p class="subtitle">Harga Jual - Subsidi Ongkir</p>
+              </div>
+              <div class="caption" data-lead-total></div>
+            </header>
+            <canvas id="leadLagChart"></canvas>
+          </div>
+        </article>
+
+        <article class="card trend">
+          <span class="card-number">2</span>
+          <header>
+            <div>
+              <h2>Retur/RTS</h2>
+              <p class="subtitle">RTS Harga Jual - RTS Nominal Diskon</p>
+            </div>
+            <div class="caption" data-retur-total></div>
+          </header>
+          <div style="position: relative;">
+            <canvas id="returChart"></canvas>
+            <div id="returChartLoading" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10; background: rgba(255, 255, 255, 0.9); padding: 20px; border-radius: 12px;">
+              <div class="retur-spinner" style="width: 40px; height: 40px; border: 4px solid rgba(90, 100, 199, 0.2); border-top-color: #5a64c7; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto;"></div>
+            </div>
+            <div id="returOktoberNote" style="display: none; margin-top: 10px; font-size: 0.75rem; color: #7b88a8; text-align: center; font-style: italic;">
+              Perhitungan Retur Oktober Masih Dalam Penyesuaian
+            </div>
+          </div>
+          <div class="chart-separator" style="border-top: 2px solid #e0e0e0; margin: 30px 0; padding-top: 30px;">
+            <header style="margin-bottom: 20px;">
+              <div>
+                <h2>Total Harga Jual</h2>
+                <p class="subtitle">Harga yang di berikan kepada Customer</p>
+              </div>
+              <div class="caption" data-harga-jual-total></div>
+            </header>
+            <canvas id="hargaJualChart"></canvas>
+          </div>
+        </article>
+
+        <article class="card breakdown">
+          <span class="card-number">3</span>
+          <header>
+            <h2>Breakdown</h2>
+            <select id="breakdownMetric">
+              <option value="transaction">Revenue Type</option>
+            </select>
+          </header>
+          <canvas id="breakdownChart"></canvas>
+          <div class="legend" id="breakdownLegend"></div>
+        </article>
+
+        <article class="card variance">
+          <span class="card-number">4</span>
+          <header>
+            <h2>Variance Analysis</h2>
+            <p class="subtitle">Actual vs Expected</p>
+          </header>
+          <canvas id="varianceChart"></canvas>
+        </article>
+
+        <article class="card trend-analysis">
+          <span class="card-number">5</span>
+          <header>
+            <div>
+              <h2>Trend Analysis</h2>
+              <p class="subtitle">Weekly view</p>
+            </div>
+            <div class="chip-group" role="group" aria-label="Trend view switch">
+              <button class="chip active" data-trend-view="revenue">Revenue</button>
+              <button class="chip" data-trend-view="cagr">CAGR</button>
+            </div>
+          </header>
+          <canvas id="trendLineChart"></canvas>
+        </article>
+
+        <article class="card contribution">
+          <span class="card-number">6</span>
+          <header>
+            <h2>Contribution Analysis</h2>
+            <p class="subtitle">Top DOA categories</p>
+          </header>
+          <canvas id="contributionChart"></canvas>
+        </article>
+
+        <article class="card full">
+          <span class="card-number">8</span>
+          <header>
+            <div>
+              <h2>Peta Distribusi Order</h2>
+              <p class="subtitle">Daerah yang memiliki order</p>
+            </div>
+          </header>
+          <div id="indonesiaMap" style="height: 500px; width: 100%; border-radius: 12px; position: relative;"></div>
+        </article>
+      </section>
+    </main>
+
+    <footer class="dashboard-footer">
+      <p>Copyright © 2025 IT Team Division</p>
+      <p class="motivation">"Bersyukur Itu Gratis , Tetapi Dampaknya Luar Biasa"</p>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
+    <!-- Leaflet untuk peta Indonesia -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Data sekarang diambil dari Google Sheets online, tidak lagi dari file offline -->
+    <!-- <script src="generated/dashboard-data.js"></script> -->
+    <script>
+      // Cek apakah user sudah login
+      if (sessionStorage.getItem('isLoggedIn') !== 'true') {
+        window.location.href = 'login.html';
+      }
+    </script>
+    <script src="app.js"></script>
+  </body>
+</html>
+

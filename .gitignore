@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build outputs
+dist/
+build/
+.generated/
+generated/
+scripts/
+
+# Excel files (terlalu besar untuk deploy)
+*.xlsx
+*.xls
+
+# Environment variables
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Netlify
+.netlify/
+
+# File yang tidak perlu untuk deploy
+vercel.json
+bauhaus architecture drawings - Google Search.jpg
+coffee.gif
