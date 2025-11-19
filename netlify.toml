@@ -1,0 +1,23 @@
+[build]
+  # Netlify akan serve file HTML langsung, tidak perlu build command
+  publish = "."
+  # Tidak perlu build command untuk static HTML
+
+[[redirects]]
+  # Redirect root ke index.html
+  from = "/"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  # Redirect /dashboard ke dashboard.html
+  from = "/dashboard"
+  to = "/dashboard.html"
+  status = 200
+
+[[redirects]]
+  # Redirect /login ke login.html
+  from = "/login"
+  to = "/login.html"
+  status = 200
+
