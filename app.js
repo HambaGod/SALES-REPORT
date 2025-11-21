@@ -28,6 +28,10 @@ const RETUR_SHEETS_URLS = {
 // URL budget iklan (format warehouse: TANGGAL, MARKETPLACE, PRODUK, TOTAL BIAYA IKLAN)
 const BUDGET_IKLAN_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTKcsgwf2YsGwnkDKQwfkNpC_kMUCxqIY5FDFl3uNpLOihk7h3m9WBipHmJVOJggvw0ZP4vWYQTtQIQ/pub?output=csv';
 
+const BUDGET_IKLAN_URLS = {
+  '2025-11': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTKcsgwf2YsGwnkDKQwfkNpC_kMUCxqIY5FDFl3uNpLOihk7h3m9WBipHmJVOJggvw0ZP4vWYQTtQIQ/pub?output=csv',
+};
+
 // ===== FUNGSI UNTUK FETCH DATA DARI SATU URL =====
 const fetchSingleSheet = async (url, name) => {
   try {
@@ -468,8 +472,17 @@ const fetchBudgetIklanData = async (monthKey = null, marketplaceFilter = 'All') 
   try {
     console.log(`Fetching budget iklan data for month: ${monthKey}, marketplace: ${marketplaceFilter}`);
 
+    // Tentukan URL berdasarkan monthKey
+    let budgetUrl = BUDGET_IKLAN_URL; // Default fallback
+    if (monthKey && BUDGET_IKLAN_URLS[monthKey]) {
+      budgetUrl = BUDGET_IKLAN_URLS[monthKey];
+      console.log(`Menggunakan URL budget iklan untuk ${monthKey}`);
+    } else if (monthKey) {
+      console.warn(`Data budget iklan untuk ${monthKey} tidak ditemukan, menggunakan URL default`);
+    }
+
     // Fetch CSV dari Google Sheets
-    const response = await fetch(BUDGET_IKLAN_URL);
+    const response = await fetch(budgetUrl);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -2794,15 +2807,22 @@ const updateProfitChart = (filtered, returData, budgetAggregated) => {
         return weekProfit === 0 ? null : weekProfit;
       });
       
+      // Determine if dark mode
+      const isDarkMode = displayMode === 'dark';
+      
       charts.profit.data.labels = weekLabels;
       charts.profit.data.datasets = [
         {
           label: filters.revenueType === 'All' ? 'All' : filters.revenueType,
           data: profitData,
           backgroundColor: chartColors[0],
-          borderColor: '#fff',
-          borderWidth: 2,
-          barThickness: 25,
+          borderColor: isDarkMode ? 'transparent' : '#fff',
+          borderWidth: isDarkMode ? 0 : 2,
+          barThickness: 22,
+          borderRadius: 8,
+          borderSkipped: false,
+          categoryPercentage: 0.7,
+          barPercentage: 0.85,
         },
       ];
       
