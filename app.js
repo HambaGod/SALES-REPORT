@@ -830,6 +830,10 @@ const transformGoogleSheetsData = (rows) => {
     // Omset = Harga Jual - Subsidi Ongkir
     const omset = Math.max(0, totalHargaJual - totalSubsidiOngkir);
 
+    // Ambil RESI dari kolom G (RESI)
+    const resi = row['RESI'] || row['Resi'] || row['resi'] || '';
+    const hasResi = resi && String(resi).trim().length > 0;
+    
     records.push({
       orderDate: date.toISOString(),
       orderTs: date.getTime(),
@@ -840,6 +844,7 @@ const transformGoogleSheetsData = (rows) => {
       margin,
       omset, // Omset untuk card 1
       hargaJual: totalHargaJual, // Harga Jual dari kolom AA
+      resi: hasResi ? resi : null, // RESI dari kolom G
       transactionType: cleanText(row['Jenis Transaksi']),
       leadsType: cleanText(row['Jenis Leads']),
       doType: cleanText(row['Jenis DOA']),
@@ -2744,6 +2749,24 @@ const updateProfitChart = (filtered, returData, budgetAggregated) => {
       console.error('Element [data-profit-total] tidak ditemukan!');
     }
     
+    // Hitung dan update ROI
+    const roi = totalBudgetIklan > 0 ? (totalProfit / totalBudgetIklan) * 100 : 0;
+    const roiElement = document.querySelector('[data-roi-value]');
+    const roiBox = document.getElementById('roiBox');
+    
+    if (roiElement) {
+      roiElement.textContent = `${roi.toFixed(2)}%`;
+      console.log('ROI calculated:', roi.toFixed(2) + '%');
+    }
+    
+    // Set background color ROI box sesuai palette
+    if (roiBox && chartColors.length > 0) {
+      const roiColor = chartColors[0]; // Gunakan warna pertama dari palette
+      roiBox.style.background = `linear-gradient(135deg, ${roiColor}20, ${roiColor}40)`;
+      roiBox.style.borderLeft = `4px solid ${roiColor}`;
+      roiBox.style.color = displayMode === 'dark' ? '#e0e0e0' : '#1f2b4a';
+    }
+    
     // Update chart profit (per week)
     if (charts.profit) {
       // Aggregate margin by week
@@ -2923,6 +2946,39 @@ const updateDashboard = () => {
     if (elements.omsetKotorTotal) {
       const formattedAmount = currencyFormatter.format(omsetBersih);
       elements.omsetKotorTotal.innerHTML = `<strong>${formattedAmount}</strong> total`;
+    }
+    
+    // Hitung Qty AWB (jumlah resi dari kolom G yang tidak kosong) dan Qty PCS (jumlah total qty dari kolom M)
+    const qtyAwb = filtered.filter(record => record.resi !== null).length;
+    const qtyPcs = filtered.reduce((sum, record) => sum + (record.qty || 0), 0);
+    
+    // Update Qty AWB
+    const qtyAwbElement = document.querySelector('[data-qty-awb]');
+    const qtyAwbBox = document.getElementById('qtyAwbBox');
+    if (qtyAwbElement) {
+      qtyAwbElement.textContent = qtyAwb.toLocaleString('id-ID');
+    }
+    
+    // Update Qty PCS
+    const qtyPcsElement = document.querySelector('[data-qty-pcs]');
+    const qtyPcsBox = document.getElementById('qtyPcsBox');
+    if (qtyPcsElement) {
+      qtyPcsElement.textContent = qtyPcs.toLocaleString('id-ID');
+    }
+    
+    // Set background color AWB dan PCS box sesuai palette
+    if (qtyAwbBox && chartColors.length > 0) {
+      const awbColor = chartColors[0];
+      qtyAwbBox.style.background = `linear-gradient(135deg, ${awbColor}20, ${awbColor}40)`;
+      qtyAwbBox.style.borderLeft = `4px solid ${awbColor}`;
+      qtyAwbBox.style.color = displayMode === 'dark' ? '#e0e0e0' : '#1f2b4a';
+    }
+    
+    if (qtyPcsBox && chartColors.length > 1) {
+      const pcsColor = chartColors[1] || chartColors[0];
+      qtyPcsBox.style.background = `linear-gradient(135deg, ${pcsColor}20, ${pcsColor}40)`;
+      qtyPcsBox.style.borderLeft = `4px solid ${pcsColor}`;
+      qtyPcsBox.style.color = displayMode === 'dark' ? '#e0e0e0' : '#1f2b4a';
     }
 
     if (elements.returTotal) {
