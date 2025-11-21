@@ -116,22 +116,24 @@
         <article class="card breakdown">
           <span class="card-number">3</span>
           <header>
-            <h2 data-budget-iklan-total>Iklan</h2>
+            <div>
+              <h2>Profit</h2>
+              <p class="subtitle">Margin - Biaya Iklan - RTS</p>
+            </div>
+            <div class="caption" data-profit-total></div>
           </header>
-          <div style="position: relative;">
-            <canvas id="breakdownChart"></canvas>
-          </div>
-          <div class="legend" id="breakdownLegend"></div>
-          
-          <div class="chart-separator" style="border-top: 2px solid #e0e0e0; margin: 30px 0; padding-top: 30px;">
-            <header style="margin-bottom: 20px;">
-              <div>
-                <h2>Profit</h2>
-                <p class="subtitle">Margin - Biaya Iklan - RTS</p>
-              </div>
-              <div class="caption" data-profit-total></div>
-            </header>
+          <div style="position: relative; min-height: 180px;">
             <canvas id="profitChart"></canvas>
+          </div>
+          
+          <div class="chart-separator" style="border-top: 2px solid #e0e0e0; margin: 57px 0 30px 0; padding-top: 30px;">
+            <header style="margin-bottom: 20px;">
+              <h2 data-budget-iklan-total>Iklan</h2>
+            </header>
+            <div style="position: relative;">
+              <canvas id="breakdownChart"></canvas>
+            </div>
+            <div class="legend" id="breakdownLegend"></div>
           </div>
         </article>
 

@@ -1036,10 +1036,10 @@ const colorPalettes = {
     4: ['#432323', '#2F5755', '#5A9690', '#E0D9D9'],
   },
   dark: {
-    1: ['#8C3061', '#C63C51', '#D95F59'],
-    2: ['#4F1787', '#EB3678', '#FB773C'],
+    1: ['#B4E50D', '#FF9B2F', '#FB4141'],
+    2: ['#E195AB', '#DE3163', '#CCDF92'],
     3: ['#6D67E4', '#46C2CB', '#F2F7A1'],
-    4: ['#61105E', '#C84771', '#FFE98A'],
+    4: ['#BF1A1A', '#FF6C0C', '#FFE08F'],
   },
 };
 
@@ -2136,15 +2136,28 @@ const initCharts = () => {
       type: 'bar',
       data: { labels: [], datasets: [] },
       options: {
+        indexAxis: 'y', // Horizontal bar chart
         responsive: true,
+        maintainAspectRatio: false,
+        layout: {
+          padding: {
+            top: 10,
+            bottom: 10,
+            left: 10,
+            right: 10
+          }
+        },
         scales: {
           x: {
             stacked: true,
+            ticks: {
+              callback: (value) => `${(value / 1_000_000).toFixed(1)}jt`,
+            },
           },
           y: {
             stacked: true,
             ticks: {
-              callback: (value) => `${(value / 1_000_000).toFixed(1)}jt`,
+              autoSkip: false, // Jangan skip label apapun
             },
           },
         },
@@ -2754,7 +2767,8 @@ const updateProfitChart = (filtered, returData, budgetAggregated) => {
         const weekRTS = totalRTS * weekRatio;
         const weekProfit = weekMargin - weekBudget - weekRTS;
         console.log(`${weekLabel}: Margin=${weekMargin.toLocaleString()}, Budget=${weekBudget.toLocaleString()}, RTS=${weekRTS.toLocaleString()}, Profit=${weekProfit.toLocaleString()}`);
-        return weekProfit;
+        // Return profit atau null jika 0 (Chart.js akan tetap tampilkan label tapi tanpa bar)
+        return weekProfit === 0 ? null : weekProfit;
       });
       
       charts.profit.data.labels = weekLabels;
@@ -2765,10 +2779,13 @@ const updateProfitChart = (filtered, returData, budgetAggregated) => {
           backgroundColor: chartColors[0],
           borderColor: '#fff',
           borderWidth: 2,
+          barThickness: 25,
         },
       ];
       
       console.log('Profit chart data:', charts.profit.data);
+      console.log('Profit chart labels:', charts.profit.data.labels);
+      console.log('Profit chart values:', profitData);
       charts.profit.update();
     }
   } catch (error) {
