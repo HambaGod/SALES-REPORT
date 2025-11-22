@@ -25,11 +25,17 @@ const RETUR_SHEETS_URLS = {
 };
 
 // ===== KONFIGURASI GOOGLE SHEETS BUDGET IKLAN =====
-// URL budget iklan (format warehouse: TANGGAL, MARKETPLACE, PRODUK, TOTAL BIAYA IKLAN)
+// URL default budget iklan (jika monthKey belum punya URL spesifik)
 const BUDGET_IKLAN_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTKcsgwf2YsGwnkDKQwfkNpC_kMUCxqIY5FDFl3uNpLOihk7h3m9WBipHmJVOJggvw0ZP4vWYQTtQIQ/pub?output=csv';
 
+// URL budget iklan per bulan (format warehouse: TANGGAL, MARKETPLACE, PRODUK, TOTAL BIAYA IKLAN)
 const BUDGET_IKLAN_URLS = {
-  '2025-11': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTKcsgwf2YsGwnkDKQwfkNpC_kMUCxqIY5FDFl3uNpLOihk7h3m9WBipHmJVOJggvw0ZP4vWYQTtQIQ/pub?output=csv',
+  // Oktober 2025
+  '2025-10':
+    'https://docs.google.com/spreadsheets/d/e/2PACX-1vRM4Diwo8TCXyfXm2v2LwYZ1spYmTllCJ8EI9w-jYOnLO32FfCsvhOWngQ8Qf12AlU3KKYoMoO_HUxM/pub?gid=0&single=true&output=csv',
+  // November 2025
+  '2025-11':
+    'https://docs.google.com/spreadsheets/d/e/2PACX-1vTKcsgwf2YsGwnkDKQwfkNpC_kMUCxqIY5FDFl3uNpLOihk7h3m9WBipHmJVOJggvw0ZP4vWYQTtQIQ/pub?output=csv',
 };
 
 // ===== FUNGSI UNTUK FETCH DATA DARI SATU URL =====

@@ -1,5 +1,5 @@
 @echo off
-setlocal
+setlocal EnableDelayedExpansion
 
 echo =============================================
 echo  TAMBAH DATA BUDGET IKLAN PER BULAN
@@ -27,6 +27,21 @@ if "%URL%"=="" (
     pause
     exit /b 1
 )
+
+REM Normalisasi URL ke format CSV (mendukung link pubhtml langsung dari Google Sheets)
+echo.
+echo Mengonversi URL ke format CSV (jika perlu)...
+for /f "usebackq delims=" %%i in (`powershell -NoLogo -NoProfile -Command ^
+  "$u='%URL%';" ^
+  "if ($u -match 'pubhtml\?gid=([0-9]+)&single=true') {" ^
+  "  $id = $Matches[1];" ^
+  "  $u = $u -replace 'pubhtml\?gid=\d+&single=true', \"pub?gid=$id&single=true&output=csv\";" ^
+  "} elseif ($u -notmatch 'output=csv') {" ^
+  "  if ($u -match '\?') { $u += '&output=csv' } else { $u += '?output=csv' }" ^
+  "};" ^
+  "$u"`) do set "URL=%%i"
+
+echo URL terkonversi: %URL%
 
 echo.
 echo Menambahkan data budget iklan...
