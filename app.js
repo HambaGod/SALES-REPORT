@@ -2935,8 +2935,8 @@ const applyColorPalette = () => {
     const card3 = document.querySelector('.card.breakdown');
     if (card3 && chartColors && chartColors.length > 0 && displayMode !== 'wallpaper') {
       const card3BgColor = chartColors[0];
-      // Gunakan warna dengan opacity untuk background yang lebih soft
-      const card3BgOpacity = isDark ? 0.15 : 0.1;
+      // Gunakan warna dengan opacity yang lebih tinggi untuk background yang lebih pekat
+      const card3BgOpacity = isDark ? 0.3 : 0.25;
       card3.style.background = hexToRgba(card3BgColor, card3BgOpacity);
       card3.style.backgroundColor = hexToRgba(card3BgColor, card3BgOpacity);
       
