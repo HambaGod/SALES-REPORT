@@ -10,13 +10,16 @@
   <body>
     <main class="dashboard">
       <header class="dashboard-header">
-        <h1>SALES REPORT LKM</h1>
+        <div>
+          <h1>SALES REPORT LKM</h1>
+          <p class="company-name">Luzie Kreatif Mandiri</p>
+        </div>
         <div style="display: flex; gap: 10px;">
           <button id="refreshBtn" class="refresh-btn" title="Refresh data dari Google Sheets">
-            <span>🔄</span> Refresh
+            Refresh
           </button>
           <button id="logoutBtn" class="refresh-btn" title="Logout" style="background: #e74c3c;">
-            <span>🚪</span> Logout
+            Logout
           </button>
         </div>
       </header>
@@ -55,7 +58,7 @@
             <option value="1">Palette 1</option>
             <option value="2">Palette 2</option>
             <option value="3">Palette 3</option>
-            <option value="4">Palette 4</option>
+            <option value="4" selected>Palette 4</option>
           </select>
         </div>
       </section>

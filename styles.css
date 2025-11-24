@@ -34,10 +34,23 @@ body {
 
 .dashboard-header h1 {
   margin: 0;
-  font-size: 2rem;
+  font-size: 1.5rem;
   font-weight: 700;
   color: #1f2b4a;
   letter-spacing: 0.02em;
+}
+
+.dashboard-header .company-name {
+  margin: 4px 0 0 0;
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: #7b88a8;
+  letter-spacing: 0.01em;
+}
+
+/* Dark mode styling untuk company name */
+body.dark-mode .dashboard-header .company-name {
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .refresh-btn {
@@ -128,7 +141,8 @@ body {
   position: fixed;
   top: 20px;
   right: 20px;
-  background: #ff4444;
+  /* Background color akan di-set oleh JavaScript berdasarkan color palette */
+  background: #ff4444; /* Fallback, akan di-override oleh JavaScript */
   color: #fff;
   padding: 16px 20px;
   border-radius: 12px;
@@ -202,6 +216,8 @@ body {
   margin-bottom: 8px;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+  /* Box-shadow akan di-set oleh JavaScript berdasarkan color palette */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .filter {
@@ -225,6 +241,19 @@ body {
   font-size: 0.95rem;
   color: #1f2b4a;
   background: #f9fbff;
+}
+
+/* Styling untuk option elements di dalam select dropdown */
+.filter select option {
+  color: #1f2b4a;
+  background: #fff;
+  padding: 8px 12px;
+}
+
+/* Dark mode styling untuk select options */
+body.dark-mode .filter select option {
+  color: #1f2b4a !important;
+  background: #fff !important;
 }
 
 .grid {

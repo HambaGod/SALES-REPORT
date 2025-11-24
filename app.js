@@ -1017,8 +1017,29 @@ const showError = (message) => {
     errorEl.id = 'error-message';
     document.body.appendChild(errorEl);
   }
+  
+  // Update warna background berdasarkan color palette yang aktif SEBELUM set innerHTML
+  // Pastikan chartColors sudah terdefinisi, jika belum gunakan warna default
+  const errorColor = (chartColors && chartColors.length > 0) ? chartColors[0] : '#ff4444';
+  console.log('Setting error message color to:', errorColor, 'from palette:', chartColors);
+  
+  // Set warna background dengan !important agar override CSS
+  errorEl.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: ${errorColor} !important;
+    background-color: ${errorColor} !important;
+    color: #fff !important;
+    padding: 16px 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    z-index: 10001;
+    max-width: 400px;
+    display: block;
+  `;
+  
   errorEl.innerHTML = `<div class="error-content"><strong>Error:</strong> ${message}</div>`;
-  errorEl.style.display = 'block';
 
   // Auto hide after 10 seconds
   setTimeout(() => {
@@ -1054,13 +1075,13 @@ let elements = {};
 
 const colorPalettes = {
   light: {
-    1: ['#E67E22', '#628141', '#8BAE66', '#EBD5AB'],
-    2: ['#FCF5EE', '#FFC4C4', '#EE6983', '#850E35'],
-    3: ['#F0E491', '#BBC863', '#658C58', '#31694E'],
-    4: ['#432323', '#2F5755', '#5A9690', '#E0D9D9'],
+    1: ['#2E7D32', '#FF9B2F', '#FB4141'],
+    2: ['#E195AB', '#DE3163', '#CCDF92'],
+    3: ['#6D67E4', '#46C2CB', '#F2F7A1'],
+    4: ['#BF1A1A', '#FF6C0C', '#FFE08F'],
   },
   dark: {
-    1: ['#B4E50D', '#FF9B2F', '#FB4141'],
+    1: ['#2E7D32', '#FF9B2F', '#FB4141'],
     2: ['#E195AB', '#DE3163', '#CCDF92'],
     3: ['#6D67E4', '#46C2CB', '#F2F7A1'],
     4: ['#BF1A1A', '#FF6C0C', '#FFE08F'],
@@ -1068,7 +1089,7 @@ const colorPalettes = {
 };
 
 let displayMode = 'light';
-let chartColors = colorPalettes.light[1];
+let chartColors = colorPalettes.light[4];
 
 const charts = {};
 let trendLineMode = 'revenue';
@@ -1790,14 +1811,14 @@ const initFilters = () => {
 
   elements.displayMode.addEventListener('change', () => {
     displayMode = elements.displayMode.value || 'light';
-    const paletteId = elements.colorPalette.value || '1';
+    const paletteId = elements.colorPalette.value || '4';
     // Pastikan chartColors selalu valid (wallpaper menggunakan light palette)
     const modeForPalette = displayMode === 'wallpaper' ? 'light' : displayMode;
     const modePalettes = colorPalettes[modeForPalette];
     if (modePalettes && modePalettes[paletteId]) {
       chartColors = modePalettes[paletteId];
     } else {
-      chartColors = colorPalettes.light[1]; // Fallback
+      chartColors = colorPalettes.light[4]; // Fallback
     }
     applyDisplayMode();
     applyColorPalette();
@@ -1805,14 +1826,14 @@ const initFilters = () => {
   });
 
   elements.colorPalette.addEventListener('change', () => {
-    const paletteId = elements.colorPalette.value || '1';
+    const paletteId = elements.colorPalette.value || '4';
     // Pastikan chartColors selalu valid (wallpaper menggunakan light palette)
     const modeForPalette = displayMode === 'wallpaper' ? 'light' : displayMode;
     const modePalettes = colorPalettes[modeForPalette];
     if (modePalettes && modePalettes[paletteId]) {
       chartColors = modePalettes[paletteId];
     } else {
-      chartColors = colorPalettes.light[1]; // Fallback
+      chartColors = colorPalettes.light[4]; // Fallback
     }
     applyColorPalette();
     updateDashboard();
@@ -2727,6 +2748,147 @@ const applyColorPalette = () => {
     const hoverB = Math.max(0, rgb.b - 20);
     refreshBtn.style.setProperty('--hover-color', `rgb(${hoverR}, ${hoverG}, ${hoverB})`);
   }
+
+  // Update error message background color berdasarkan palette
+  const errorEl = document.getElementById('error-message');
+  if (errorEl && chartColors && chartColors.length > 0) {
+    // Gunakan warna pertama dari palette untuk error message
+    const errorColor = chartColors[0];
+    // Update semua style properties dengan !important
+    errorEl.style.setProperty('background', errorColor, 'important');
+    errorEl.style.setProperty('background-color', errorColor, 'important');
+    errorEl.style.color = '#fff';
+    // Pastikan display tetap block jika error sedang ditampilkan
+    if (errorEl.style.display !== 'none') {
+      errorEl.style.display = 'block';
+    }
+  }
+
+  // Update filters-card background color berdasarkan palette
+  const filtersCard = document.querySelector('.filters-card');
+  if (filtersCard && chartColors && chartColors.length > 0) {
+    // Gunakan warna pertama dari palette untuk background filter card
+    const filterBgColor = chartColors[0];
+    
+    // Convert hex to rgba dengan opacity untuk background yang lebih soft
+    const hexToRgba = (hex, alpha) => {
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    };
+    
+    // Gunakan warna dengan opacity 0.25 untuk background yang lebih terlihat tapi tetap soft
+    const bgOpacity = isDark ? 0.3 : 0.2;
+    filtersCard.style.background = hexToRgba(filterBgColor, bgOpacity);
+    filtersCard.style.backgroundColor = hexToRgba(filterBgColor, bgOpacity);
+    
+    // Tambahkan box-shadow seperti card lainnya (mirip dengan ROI dan Qty AWB box)
+    // Shadow yang lebih terlihat dan konsisten dengan card lainnya
+    if (isDark) {
+      filtersCard.style.setProperty('box-shadow', '0 4px 12px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.2)', 'important');
+    } else {
+      const shadowColor = hexToRgba(filterBgColor, 0.3);
+      filtersCard.style.setProperty('box-shadow', `0 4px 12px ${shadowColor}, 0 2px 4px ${hexToRgba(filterBgColor, 0.2)}`, 'important');
+    }
+    
+    // Update box-shadow untuk semua card (card 1-6) agar mengikuti color palette
+    const allCards = document.querySelectorAll('.card:not(.filters-card)');
+    allCards.forEach(card => {
+      if (chartColors && chartColors.length > 0) {
+        const cardShadowColor = chartColors[0];
+        if (isDark) {
+          card.style.setProperty('box-shadow', '0 4px 12px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.2)', 'important');
+        } else {
+          const shadowColor = hexToRgba(cardShadowColor, 0.3);
+          card.style.setProperty('box-shadow', `0 4px 12px ${shadowColor}, 0 2px 4px ${hexToRgba(cardShadowColor, 0.2)}`, 'important');
+        }
+      }
+    });
+    
+    // Pastikan text tetap readable (gunakan warna gelap untuk kontras)
+    // Jika mode dark, gunakan warna putih untuk text
+    if (isDark) {
+      filtersCard.style.color = '#fff';
+      const labels = filtersCard.querySelectorAll('.filter label');
+      labels.forEach(label => {
+        label.style.color = 'rgba(255, 255, 255, 0.9)';
+      });
+      const selects = filtersCard.querySelectorAll('.filter select');
+      selects.forEach(select => {
+        select.style.color = '#fff';
+        select.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+        select.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+        // Pastikan options juga memiliki warna yang terlihat saat dropdown dibuka
+        // Options akan memiliki background putih dan text gelap agar terlihat
+        const options = select.querySelectorAll('option');
+        options.forEach(option => {
+          // Force styling untuk option elements agar terlihat di dark mode
+          option.style.setProperty('color', '#1f2b4a', 'important');
+          option.style.setProperty('background-color', '#fff', 'important');
+          option.style.setProperty('background', '#fff', 'important');
+        });
+      });
+    } else {
+      filtersCard.style.color = '#1f2b4a';
+      const labels = filtersCard.querySelectorAll('.filter label');
+      labels.forEach(label => {
+        label.style.color = '#7b88a8';
+      });
+      const selects = filtersCard.querySelectorAll('.filter select');
+      selects.forEach(select => {
+        select.style.color = '#1f2b4a';
+        select.style.backgroundColor = '#fff';
+        select.style.borderColor = '#d7ddf1';
+      });
+    }
+  }
+
+  // Update box-shadow untuk Qty AWB dan Qty PCS box agar mengikuti color palette
+  const qtyAwbBox = document.getElementById('qtyAwbBox');
+  const qtyPcsBox = document.getElementById('qtyPcsBox');
+  
+  if (chartColors && chartColors.length > 0) {
+    // Helper function untuk convert hex to rgba
+    const hexToRgba = (hex, alpha) => {
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    };
+    
+    if (qtyAwbBox) {
+      const awbColor = chartColors[0];
+      if (isDark) {
+        qtyAwbBox.style.setProperty('box-shadow', '0 4px 12px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.2)', 'important');
+      } else {
+        const shadowColor = hexToRgba(awbColor, 0.3);
+        qtyAwbBox.style.setProperty('box-shadow', `0 4px 12px ${shadowColor}, 0 2px 4px ${hexToRgba(awbColor, 0.2)}`, 'important');
+      }
+    }
+    
+    if (qtyPcsBox && chartColors.length > 1) {
+      const pcsColor = chartColors[1] || chartColors[0];
+      if (isDark) {
+        qtyPcsBox.style.setProperty('box-shadow', '0 4px 12px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.2)', 'important');
+      } else {
+        const shadowColor = hexToRgba(pcsColor, 0.3);
+        qtyPcsBox.style.setProperty('box-shadow', `0 4px 12px ${shadowColor}, 0 2px 4px ${hexToRgba(pcsColor, 0.2)}`, 'important');
+      }
+    }
+    
+    // Update box-shadow untuk ROI box agar mengikuti color palette
+    const roiBox = document.getElementById('roiBox');
+    if (roiBox) {
+      const roiColor = chartColors[0];
+      if (isDark) {
+        roiBox.style.setProperty('box-shadow', '0 4px 12px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.2)', 'important');
+      } else {
+        const shadowColor = hexToRgba(roiColor, 0.3);
+        roiBox.style.setProperty('box-shadow', `0 4px 12px ${shadowColor}, 0 2px 4px ${hexToRgba(roiColor, 0.2)}`, 'important');
+      }
+    }
+  }
 };
 
 // Fungsi untuk update chart Profit
@@ -2784,6 +2946,22 @@ const updateProfitChart = (filtered, returData, budgetAggregated) => {
       roiBox.style.background = `linear-gradient(135deg, ${roiColor}20, ${roiColor}40)`;
       roiBox.style.borderLeft = `4px solid ${roiColor}`;
       roiBox.style.color = displayMode === 'dark' ? '#e0e0e0' : '#1f2b4a';
+      
+      // Tambahkan box-shadow seperti card lainnya untuk efek 3D
+      // Helper function untuk convert hex to rgba
+      const hexToRgba = (hex, alpha) => {
+        const r = parseInt(hex.slice(1, 3), 16);
+        const g = parseInt(hex.slice(3, 5), 16);
+        const b = parseInt(hex.slice(5, 7), 16);
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+      };
+      
+      if (displayMode === 'dark') {
+        roiBox.style.setProperty('box-shadow', '0 4px 12px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.2)', 'important');
+      } else {
+        const shadowColor = hexToRgba(roiColor, 0.3);
+        roiBox.style.setProperty('box-shadow', `0 4px 12px ${shadowColor}, 0 2px 4px ${hexToRgba(roiColor, 0.2)}`, 'important');
+      }
     }
     
     // Update chart profit (per week)
@@ -2993,11 +3171,27 @@ const updateDashboard = () => {
     }
     
     // Set background color AWB dan PCS box sesuai palette
+    // Helper function untuk convert hex to rgba
+    const hexToRgba = (hex, alpha) => {
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    };
+    
     if (qtyAwbBox && chartColors.length > 0) {
       const awbColor = chartColors[0];
       qtyAwbBox.style.background = `linear-gradient(135deg, ${awbColor}20, ${awbColor}40)`;
       qtyAwbBox.style.borderLeft = `4px solid ${awbColor}`;
       qtyAwbBox.style.color = displayMode === 'dark' ? '#e0e0e0' : '#1f2b4a';
+      
+      // Tambahkan box-shadow seperti card lainnya untuk efek 3D
+      if (displayMode === 'dark') {
+        qtyAwbBox.style.setProperty('box-shadow', '0 4px 12px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.2)', 'important');
+      } else {
+        const shadowColor = hexToRgba(awbColor, 0.3);
+        qtyAwbBox.style.setProperty('box-shadow', `0 4px 12px ${shadowColor}, 0 2px 4px ${hexToRgba(awbColor, 0.2)}`, 'important');
+      }
     }
     
     if (qtyPcsBox && chartColors.length > 1) {
@@ -3005,6 +3199,14 @@ const updateDashboard = () => {
       qtyPcsBox.style.background = `linear-gradient(135deg, ${pcsColor}20, ${pcsColor}40)`;
       qtyPcsBox.style.borderLeft = `4px solid ${pcsColor}`;
       qtyPcsBox.style.color = displayMode === 'dark' ? '#e0e0e0' : '#1f2b4a';
+      
+      // Tambahkan box-shadow seperti card lainnya untuk efek 3D
+      if (displayMode === 'dark') {
+        qtyPcsBox.style.setProperty('box-shadow', '0 4px 12px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.2)', 'important');
+      } else {
+        const shadowColor = hexToRgba(pcsColor, 0.3);
+        qtyPcsBox.style.setProperty('box-shadow', `0 4px 12px ${shadowColor}, 0 2px 4px ${hexToRgba(pcsColor, 0.2)}`, 'important');
+      }
     }
 
     if (elements.returTotal) {
@@ -3350,7 +3552,7 @@ const bootstrap = async () => {
 
     // Initialize display mode dan color palette dengan validasi
     displayMode = elements.displayMode ? (elements.displayMode.value || 'light') : 'light';
-    const paletteId = elements.colorPalette ? (elements.colorPalette.value || '1') : '1';
+    const paletteId = elements.colorPalette ? (elements.colorPalette.value || '4') : '4';
 
     // Pastikan chartColors selalu valid (wallpaper menggunakan light palette)
     const modeForPalette = displayMode === 'wallpaper' ? 'light' : displayMode;
@@ -3358,7 +3560,7 @@ const bootstrap = async () => {
     if (modePalettes && modePalettes[paletteId]) {
       chartColors = modePalettes[paletteId];
     } else {
-      chartColors = colorPalettes.light[1]; // Fallback ke light mode palette 1
+      chartColors = colorPalettes.light[4]; // Fallback ke light mode palette 4
     }
 
     initFilters();
@@ -3373,6 +3575,8 @@ const bootstrap = async () => {
     }, 100);
     // Apply display mode styling (TIDAK update chart, hanya styling DOM)
     applyDisplayMode();
+    // Apply color palette (termasuk update error message jika ada)
+    applyColorPalette();
     // Update dashboard dengan data (ini yang akan update chart dengan data)
     updateDashboard();
 
@@ -3414,6 +3618,25 @@ const bootstrap = async () => {
         window.location.href = 'login.html';
       });
     }
+
+    // Setup event listener untuk memastikan option styling ter-apply saat select dibuka
+    const allSelects = document.querySelectorAll('.filter select');
+    allSelects.forEach(select => {
+      select.addEventListener('focus', () => {
+        // Saat select dibuka, pastikan options memiliki styling yang benar
+        const options = select.querySelectorAll('option');
+        const isDark = displayMode === 'dark';
+        options.forEach(option => {
+          if (isDark) {
+            option.style.color = '#1f2b4a';
+            option.style.backgroundColor = '#fff';
+          } else {
+            option.style.color = '#1f2b4a';
+            option.style.backgroundColor = '#fff';
+          }
+        });
+      });
+    });
   } catch (error) {
     console.error('Error saat inisialisasi dashboard:', error);
     showError(error.message);
