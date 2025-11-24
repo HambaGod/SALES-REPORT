@@ -2680,14 +2680,9 @@ const applyColorPalette = () => {
 
   if (charts.breakdown && charts.breakdown.data.datasets[0]) {
     charts.breakdown.data.datasets[0].backgroundColor = chartColors;
-    // Hilangkan border saat dark mode
-    if (isDark) {
-      charts.breakdown.data.datasets[0].borderWidth = 0;
-      charts.breakdown.data.datasets[0].borderColor = 'transparent';
-    } else {
-      charts.breakdown.data.datasets[0].borderWidth = 2;
-      charts.breakdown.data.datasets[0].borderColor = '#fff';
-    }
+    // Hilangkan border untuk semua mode
+    charts.breakdown.data.datasets[0].borderWidth = 0;
+    charts.breakdown.data.datasets[0].borderColor = 'transparent';
     charts.breakdown.update('none');
   }
 
@@ -2727,26 +2722,66 @@ const applyColorPalette = () => {
     num.style.color = '#fff';
   });
 
+  // Helper function untuk convert hex to rgba
+  const hexToRgba = (hex, alpha) => {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
+  
+  const hexToRgb = (hex) => {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return { r, g, b };
+  };
+
   // Update refresh button color berdasarkan palette
   const refreshBtn = document.getElementById('refreshBtn');
-  if (refreshBtn) {
+  if (refreshBtn && chartColors && chartColors.length > 0) {
     refreshBtn.style.backgroundColor = chartColors[0];
     refreshBtn.style.color = '#fff';
 
-    // Update hover effect dengan warna yang sedikit lebih gelap
-    const hexToRgb = (hex) => {
-      const r = parseInt(hex.slice(1, 3), 16);
-      const g = parseInt(hex.slice(3, 5), 16);
-      const b = parseInt(hex.slice(5, 7), 16);
-      return { r, g, b };
-    };
+    // Tambahkan box-shadow untuk efek 3D
+    if (isDark) {
+      refreshBtn.style.setProperty('box-shadow', '0 4px 12px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.2)', 'important');
+    } else {
+      const shadowColor = hexToRgba(chartColors[0], 0.3);
+      refreshBtn.style.setProperty('box-shadow', `0 4px 12px ${shadowColor}, 0 2px 4px ${hexToRgba(chartColors[0], 0.2)}`, 'important');
+    }
 
+    // Update hover effect dengan warna yang sedikit lebih gelap
     const rgb = hexToRgb(chartColors[0]);
     // Buat warna lebih gelap untuk hover (kurangi 20 dari setiap channel)
     const hoverR = Math.max(0, rgb.r - 20);
     const hoverG = Math.max(0, rgb.g - 20);
     const hoverB = Math.max(0, rgb.b - 20);
     refreshBtn.style.setProperty('--hover-color', `rgb(${hoverR}, ${hoverG}, ${hoverB})`);
+  }
+  
+  // Update logout button color berdasarkan palette (gunakan warna kedua atau pertama)
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn && chartColors && chartColors.length > 0) {
+    // Gunakan warna kedua dari palette, atau warna pertama jika tidak ada
+    const logoutColor = chartColors.length > 1 ? chartColors[1] : chartColors[0];
+    logoutBtn.style.backgroundColor = logoutColor;
+    logoutBtn.style.color = '#fff';
+
+    // Tambahkan box-shadow untuk efek 3D
+    if (isDark) {
+      logoutBtn.style.setProperty('box-shadow', '0 4px 12px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.2)', 'important');
+    } else {
+      const shadowColor = hexToRgba(logoutColor, 0.3);
+      logoutBtn.style.setProperty('box-shadow', `0 4px 12px ${shadowColor}, 0 2px 4px ${hexToRgba(logoutColor, 0.2)}`, 'important');
+    }
+
+    // Update hover effect dengan warna yang sedikit lebih gelap
+    const rgb = hexToRgb(logoutColor);
+    const hoverR = Math.max(0, rgb.r - 20);
+    const hoverG = Math.max(0, rgb.g - 20);
+    const hoverB = Math.max(0, rgb.b - 20);
+    logoutBtn.style.setProperty('--hover-color', `rgb(${hoverR}, ${hoverG}, ${hoverB})`);
   }
 
   // Update error message background color berdasarkan palette
@@ -2805,6 +2840,23 @@ const applyColorPalette = () => {
         }
       }
     });
+    
+    // Update background color untuk card 3 (breakdown/profit) agar mengikuti color palette
+    const card3 = document.querySelector('.card.breakdown');
+    if (card3 && chartColors && chartColors.length > 0) {
+      const card3BgColor = chartColors[0];
+      // Gunakan warna dengan opacity untuk background yang lebih soft
+      const card3BgOpacity = isDark ? 0.15 : 0.1;
+      card3.style.background = hexToRgba(card3BgColor, card3BgOpacity);
+      card3.style.backgroundColor = hexToRgba(card3BgColor, card3BgOpacity);
+      
+      // Pastikan text tetap readable
+      if (isDark) {
+        card3.style.color = '#fff';
+      } else {
+        card3.style.color = '#1f2b4a';
+      }
+    }
     
     // Pastikan text tetap readable (gunakan warna gelap untuk kontras)
     // Jika mode dark, gunakan warna putih untuk text
@@ -3000,8 +3052,8 @@ const updateProfitChart = (filtered, returData, budgetAggregated) => {
           label: filters.revenueType === 'All' ? 'All' : filters.revenueType,
           data: profitData,
           backgroundColor: chartColors[0],
-          borderColor: isDarkMode ? 'transparent' : '#fff',
-          borderWidth: isDarkMode ? 0 : 2,
+          borderColor: 'transparent',
+          borderWidth: 0,
           barThickness: 22,
           borderRadius: 8,
           borderSkipped: false,
@@ -3423,14 +3475,9 @@ const updateDashboard = () => {
         charts.breakdown.data.datasets[0].data = budgetAggregated.data;
         charts.breakdown.data.datasets[0].backgroundColor = chartColors;
 
-        // Hilangkan border saat dark mode
-        if (isDark) {
-          charts.breakdown.data.datasets[0].borderWidth = 0;
-          charts.breakdown.data.datasets[0].borderColor = 'transparent';
-        } else {
-          charts.breakdown.data.datasets[0].borderWidth = 2;
-          charts.breakdown.data.datasets[0].borderColor = '#fff';
-        }
+        // Hilangkan border untuk semua mode
+        charts.breakdown.data.datasets[0].borderWidth = 0;
+        charts.breakdown.data.datasets[0].borderColor = 'transparent';
 
         charts.breakdown.update();
       }
