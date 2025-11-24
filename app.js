@@ -2354,7 +2354,7 @@ const applyDisplayMode = () => {
     body.style.backgroundColor = '';
     body.style.color = '';
 
-    // Card tetap putih dengan transparansi
+    // Card tetap putih dengan transparansi (termasuk card 3)
     document.querySelectorAll('.card').forEach(card => {
       card.style.backgroundColor = 'rgba(255, 255, 255, 0.95)';
       card.style.color = '';
@@ -2386,6 +2386,36 @@ const applyDisplayMode = () => {
     document.querySelectorAll('.chart-separator').forEach(div => {
       div.style.borderTopColor = '#e0e0e0';
     });
+
+    // Tambahkan efek glow/shadow pada header untuk wallpaper mode agar lebih terlihat
+    const headerH1 = document.querySelector('.dashboard-header h1');
+    const companyName = document.querySelector('.dashboard-header .company-name');
+    
+    if (headerH1) {
+      // Text shadow dengan efek glow yang kuat (multiple shadows untuk efek bersinar)
+      headerH1.style.textShadow = '0 0 10px rgba(255, 255, 255, 0.8), 0 0 20px rgba(255, 255, 255, 0.6), 0 0 30px rgba(255, 255, 255, 0.4), 0 2px 4px rgba(0, 0, 0, 0.5)';
+      headerH1.style.color = '#fff';
+      headerH1.style.fontWeight = '700';
+    }
+    
+    if (companyName) {
+      // Text shadow dengan efek glow yang lebih halus untuk company name
+      companyName.style.textShadow = '0 0 8px rgba(255, 255, 255, 0.7), 0 0 15px rgba(255, 255, 255, 0.5), 0 0 25px rgba(255, 255, 255, 0.3), 0 1px 2px rgba(0, 0, 0, 0.4)';
+      companyName.style.color = '#fff';
+    }
+
+    // Disable color palette select dan set ke palette 4 saat wallpaper mode
+    if (elements.colorPalette) {
+      elements.colorPalette.disabled = true;
+      elements.colorPalette.value = '4';
+      // Update chartColors ke palette 4
+      const modeForPalette = 'light'; // Wallpaper menggunakan light palette
+      const modePalettes = colorPalettes[modeForPalette];
+      if (modePalettes && modePalettes[4]) {
+        chartColors = modePalettes[4];
+        applyColorPalette();
+      }
+    }
 
     const returOktoberNote = document.getElementById('returOktoberNote');
     if (returOktoberNote) {
@@ -2438,6 +2468,13 @@ const applyDisplayMode = () => {
       card.style.color = '#e0e0e0';
     });
 
+    // Reset card 3 (breakdown/profit) saat dark mode (akan di-handle oleh applyColorPalette)
+    const card3 = document.querySelector('.card.breakdown');
+    if (card3) {
+      card3.style.backgroundColor = '#2d2d2d';
+      card3.style.color = '#e0e0e0';
+    }
+
     // Update card number styling for dark mode (warna akan di-update oleh applyColorPalette)
     // Tidak perlu set manual di sini karena applyColorPalette akan handle
 
@@ -2464,6 +2501,25 @@ const applyDisplayMode = () => {
     document.querySelectorAll('.caption').forEach(caption => {
       caption.style.color = '#e0e0e0';
     });
+
+    // Reset text shadow untuk header saat dark mode (tidak perlu glow)
+    const headerH1 = document.querySelector('.dashboard-header h1');
+    const companyName = document.querySelector('.dashboard-header .company-name');
+    
+    if (headerH1) {
+      headerH1.style.textShadow = '';
+      headerH1.style.color = '#e0e0e0';
+    }
+    
+    if (companyName) {
+      companyName.style.textShadow = '';
+      companyName.style.color = 'rgba(255, 255, 255, 0.7)';
+    }
+
+    // Enable color palette select saat dark mode
+    if (elements.colorPalette) {
+      elements.colorPalette.disabled = false;
+    }
 
     // Update border pembatas untuk dark mode
     document.querySelectorAll('.chart-separator').forEach(div => {
@@ -2534,6 +2590,20 @@ const applyDisplayMode = () => {
       card.style.color = '';
     });
 
+    // Reset card 3 (breakdown/profit) saat keluar dari wallpaper mode
+    const card3 = document.querySelector('.card.breakdown');
+    if (card3) {
+      card3.style.backgroundColor = '';
+      card3.style.color = '';
+      // Reset text colors di dalam card 3
+      const card3Texts = card3.querySelectorAll('h2, .subtitle, p, span, div');
+      card3Texts.forEach(text => {
+        if (!text.classList.contains('caption')) {
+          text.style.color = '';
+        }
+      });
+    }
+
     // Reset card number styling for light mode (warna akan di-update oleh applyColorPalette)
     // Tidak perlu reset manual di sini karena applyColorPalette akan handle
 
@@ -2561,10 +2631,29 @@ const applyDisplayMode = () => {
       caption.style.color = '';
     });
 
+    // Reset text shadow untuk header saat keluar dari wallpaper mode
+    const headerH1 = document.querySelector('.dashboard-header h1');
+    const companyName = document.querySelector('.dashboard-header .company-name');
+    
+    if (headerH1) {
+      headerH1.style.textShadow = '';
+      headerH1.style.color = '';
+    }
+    
+    if (companyName) {
+      companyName.style.textShadow = '';
+      companyName.style.color = '';
+    }
+
     // Reset border pembatas untuk light mode
     document.querySelectorAll('.chart-separator').forEach(div => {
       div.style.borderTopColor = '#e0e0e0';
     });
+
+    // Enable color palette select saat light mode
+    if (elements.colorPalette) {
+      elements.colorPalette.disabled = false;
+    }
 
     // Reset keterangan Oktober untuk light mode
     const returOktoberNote = document.getElementById('returOktoberNote');
@@ -2842,8 +2931,9 @@ const applyColorPalette = () => {
     });
     
     // Update background color untuk card 3 (breakdown/profit) agar mengikuti color palette
+    // Skip jika wallpaper mode (card 3 akan menggunakan background putih seperti card lainnya)
     const card3 = document.querySelector('.card.breakdown');
-    if (card3 && chartColors && chartColors.length > 0) {
+    if (card3 && chartColors && chartColors.length > 0 && displayMode !== 'wallpaper') {
       const card3BgColor = chartColors[0];
       // Gunakan warna dengan opacity untuk background yang lebih soft
       const card3BgOpacity = isDark ? 0.15 : 0.1;
@@ -2856,6 +2946,11 @@ const applyColorPalette = () => {
       } else {
         card3.style.color = '#1f2b4a';
       }
+    } else if (card3 && displayMode === 'wallpaper') {
+      // Saat wallpaper mode, card 3 sama seperti card lainnya (putih dengan opacity 0.95)
+      card3.style.background = 'rgba(255, 255, 255, 0.95)';
+      card3.style.backgroundColor = 'rgba(255, 255, 255, 0.95)';
+      card3.style.color = '#1f2b4a';
     }
     
     // Pastikan text tetap readable (gunakan warna gelap untuk kontras)
@@ -2940,6 +3035,35 @@ const applyColorPalette = () => {
         roiBox.style.setProperty('box-shadow', `0 4px 12px ${shadowColor}, 0 2px 4px ${hexToRgba(roiColor, 0.2)}`, 'important');
       }
     }
+    
+    // Update semua caption chart dengan background box sesuai palette dan ukuran sama dengan profit
+    const allCaptions = document.querySelectorAll('.caption');
+    allCaptions.forEach((caption, index) => {
+      if (chartColors && chartColors.length > 0) {
+        // Gunakan warna yang sama untuk semua caption (warna pertama dari palette)
+        const captionColor = chartColors[0];
+        
+        // Set background color
+        caption.style.backgroundColor = captionColor;
+        caption.style.color = '#fff';
+        
+        // Set ukuran yang sama dengan profit caption (kecil)
+        caption.style.padding = '4px 8px';
+        caption.style.borderRadius = '6px';
+        caption.style.fontSize = '0.75rem';
+        caption.style.display = 'inline-block';
+        caption.style.fontWeight = '600';
+        caption.style.whiteSpace = 'nowrap';
+        
+        // Tambahkan box-shadow untuk efek 3D
+        if (isDark) {
+          caption.style.setProperty('box-shadow', '0 4px 12px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.2)', 'important');
+        } else {
+          const shadowColor = hexToRgba(captionColor, 0.3);
+          caption.style.setProperty('box-shadow', `0 4px 12px ${shadowColor}, 0 2px 4px ${hexToRgba(captionColor, 0.2)}`, 'important');
+        }
+      }
+    });
   }
 };
 
@@ -3485,11 +3609,12 @@ const updateDashboard = () => {
       // Update legend untuk budget iklan
       updateBreakdownLegend(budgetAggregated.labels.map((label, index) => [label, budgetAggregated.data[index]]));
       
-      // Update judul dengan total budget iklan
+      // Update caption dengan total budget iklan (format sama dengan caption lainnya)
       const totalBudgetIklan = budgetAggregated.data.reduce((sum, val) => sum + val, 0);
-      const budgetIklanTitle = document.querySelector('[data-budget-iklan-total]');
-      if (budgetIklanTitle) {
-        budgetIklanTitle.textContent = `Iklan Rp ${totalBudgetIklan.toLocaleString('id-ID')}`;
+      const budgetIklanCaption = document.querySelector('[data-budget-iklan-total]');
+      if (budgetIklanCaption) {
+        const formattedAmount = currencyFormatter.format(totalBudgetIklan);
+        budgetIklanCaption.innerHTML = `<strong>${formattedAmount}</strong> total`;
       }
 
       // Simpan data budget iklan untuk perhitungan profit
