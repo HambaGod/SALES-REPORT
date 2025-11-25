@@ -1350,6 +1350,42 @@ const aggregateLeadLag = (data, revenueType = 'All') => {
   return { labels, datasets, total };
 };
 
+// Fungsi untuk aggregasi data margin per minggu
+const aggregateMarginByWeek = (records) => {
+  const weekData = {
+    'Week 1': 0,
+    'Week 2': 0,
+    'Week 3': 0,
+    'Week 4': 0
+  };
+
+  records.forEach((record) => {
+    const weekNum = getWeekInMonth(record.orderTs);
+    const weekLabel = `Week ${weekNum}`;
+    const value = record.margin || 0;
+    weekData[weekLabel] = (weekData[weekLabel] || 0) + value;
+  });
+
+  // Buat struktur data untuk chart
+  const labels = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+  const values = labels.map(week => Math.round(weekData[week] || 0));
+
+  // Buat datasets - satu dataset untuk total margin per week (area chart)
+  const datasets = [{
+    label: 'Margin',
+    data: values,
+    backgroundColor: chartColors[2] || chartColors[0],
+    borderColor: chartColors[2] || chartColors[0],
+    fill: true,
+    tension: 0.4,
+  }];
+
+  // Total
+  const total = records.reduce((sum, record) => sum + (record.margin || 0), 0);
+
+  return { labels, datasets, total };
+};
+
 // Fungsi untuk aggregasi data retur per minggu
 const aggregateReturByWeek = (returRecords) => {
   const weekData = {
@@ -1954,9 +1990,9 @@ const initCharts = () => {
 
   const hargaJualChartEl = document.getElementById('hargaJualChart');
   if (hargaJualChartEl) {
-    // Ambil tinggi chart Omset Bersih sebagai referensi
-    const omsetKotorChartEl = document.getElementById('omsetKotorChart');
-    const targetHeight = omsetKotorChartEl ? omsetKotorChartEl.offsetHeight : 300;
+    // Ambil tinggi chart Omset sebagai referensi (sama seperti chart Retur)
+    const leadLagChartEl = document.getElementById('leadLagChart');
+    const targetHeight = leadLagChartEl ? leadLagChartEl.offsetHeight : 300;
 
     charts.hargaJual = new Chart(hargaJualChartEl, {
       type: 'line',
@@ -1990,10 +2026,58 @@ const initCharts = () => {
       },
     });
 
-    // Set tinggi chart Harga Jual sama dengan chart Omset Bersih
-    hargaJualChartEl.style.height = `${targetHeight}px`;
+    // Set tinggi chart Harga Jual sama dengan chart Retur (menggunakan parentElement)
+    if (hargaJualChartEl.parentElement) {
+      hargaJualChartEl.parentElement.style.height = `${targetHeight}px`;
+    }
   } else {
     console.warn('Element hargaJualChart tidak ditemukan');
+  }
+
+  const marginChartEl = document.getElementById('marginChart');
+  if (marginChartEl) {
+    // Ambil tinggi chart Omset sebagai referensi (sama seperti chart Retur)
+    const leadLagChartEl = document.getElementById('leadLagChart');
+    const targetHeight = leadLagChartEl ? leadLagChartEl.offsetHeight : 300;
+
+    charts.margin = new Chart(marginChartEl, {
+      type: 'line',
+      data: { labels: [], datasets: [] },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+          mode: 'index',
+          intersect: false,
+        },
+        scales: {
+          x: {
+            stacked: true,
+          },
+          y: {
+            stacked: true,
+            ticks: {
+              callback: (value) => `${(value / 1_000_000).toFixed(1)}jt`,
+            },
+          },
+        },
+        plugins: {
+          legend: { position: 'bottom' },
+        },
+        elements: {
+          point: {
+            radius: 0,
+          },
+        },
+      },
+    });
+
+    // Set tinggi chart Margin sama dengan chart Retur (menggunakan parentElement)
+    if (marginChartEl.parentElement) {
+      marginChartEl.parentElement.style.height = `${targetHeight}px`;
+    }
+  } else {
+    console.warn('Element marginChart tidak ditemukan');
   }
 
   const varianceEl = document.getElementById('varianceChart');
@@ -2754,6 +2838,14 @@ const applyColorPalette = () => {
     charts.hargaJual.update('none');
   }
 
+  if (charts.margin && charts.margin.data.datasets) {
+    charts.margin.data.datasets.forEach((dataset, idx) => {
+      dataset.backgroundColor = chartColors[2] || chartColors[0];
+      dataset.borderColor = chartColors[2] || chartColors[0];
+    });
+    charts.margin.update('none');
+  }
+
   if (charts.variance && charts.variance.data.datasets) {
     charts.variance.data.datasets[0].backgroundColor = chartColors[0];
     charts.variance.data.datasets[1].backgroundColor = chartColors[1] || chartColors[0];
@@ -3432,11 +3524,11 @@ const updateDashboard = () => {
 
     // Update chart harga jual
     if (charts.hargaJual) {
-      // Set tinggi chart Harga Jual sama dengan chart Omset Bersih
-      const omsetKotorChartEl = document.getElementById('omsetKotorChart');
-      if (omsetKotorChartEl && charts.hargaJual.canvas) {
-        const targetHeight = omsetKotorChartEl.offsetHeight;
-        charts.hargaJual.canvas.style.height = `${targetHeight}px`;
+      // Set tinggi chart Harga Jual sama dengan chart Retur (menggunakan leadLagChart sebagai referensi)
+      const leadLagChartEl = document.getElementById('leadLagChart');
+      if (leadLagChartEl && charts.hargaJual.canvas && charts.hargaJual.canvas.parentElement) {
+        const targetHeight = leadLagChartEl.offsetHeight;
+        charts.hargaJual.canvas.parentElement.style.height = `${targetHeight}px`;
       }
 
       charts.hargaJual.data.labels = hargaJualAggregated.labels;
@@ -3458,6 +3550,37 @@ const updateDashboard = () => {
       } else {
         const formattedAmount = currencyFormatter.format(totalHargaJual);
         elements.hargaJualTotal.innerHTML = `<strong>${formattedAmount}</strong> total`;
+      }
+    }
+
+    // Update chart margin
+    const marginAggregated = aggregateMarginByWeek(filtered);
+    if (charts.margin) {
+      // Set tinggi chart Margin sama dengan chart Retur (menggunakan leadLagChart sebagai referensi)
+      const leadLagChartEl = document.getElementById('leadLagChart');
+      if (leadLagChartEl && charts.margin.canvas && charts.margin.canvas.parentElement) {
+        const targetHeight = leadLagChartEl.offsetHeight;
+        charts.margin.canvas.parentElement.style.height = `${targetHeight}px`;
+      }
+
+      charts.margin.data.labels = marginAggregated.labels;
+      charts.margin.data.datasets = marginAggregated.datasets;
+      // Update warna sesuai palette
+      if (charts.margin.data.datasets[0]) {
+        charts.margin.data.datasets[0].backgroundColor = chartColors[2] || chartColors[0];
+        charts.margin.data.datasets[0].borderColor = chartColors[2] || chartColors[0];
+      }
+      charts.margin.update();
+    }
+
+    // Update total margin
+    if (elements.marginTotal) {
+      const totalMargin = marginAggregated.total || 0;
+      if (totalMargin === 0) {
+        elements.marginTotal.innerHTML = `<strong>Rp 0</strong> total`;
+      } else {
+        const formattedAmount = currencyFormatter.format(totalMargin);
+        elements.marginTotal.innerHTML = `<strong>${formattedAmount}</strong> total`;
       }
     }
 
@@ -3542,7 +3665,30 @@ const updateDashboard = () => {
       }
     }
 
-  });
+    // Update chart margin dengan error state
+    const marginAggregatedError = aggregateMarginByWeek(filtered);
+    if (charts.margin) {
+      charts.margin.data.labels = marginAggregatedError.labels;
+      charts.margin.data.datasets = marginAggregatedError.datasets;
+      if (charts.margin.data.datasets[0]) {
+        charts.margin.data.datasets[0].backgroundColor = chartColors[2] || chartColors[0];
+        charts.margin.data.datasets[0].borderColor = chartColors[2] || chartColors[0];
+      }
+      charts.margin.update();
+    }
+
+    // Update total margin (tetap update meskipun error retur)
+    if (elements.marginTotal) {
+      const totalMargin = marginAggregatedError.total || 0;
+      if (totalMargin === 0) {
+        elements.marginTotal.innerHTML = `<strong>Rp 0</strong> total`;
+      } else {
+        const formattedAmount = currencyFormatter.format(totalMargin);
+        elements.marginTotal.innerHTML = `<strong>${formattedAmount}</strong> total`;
+      }
+    }
+
+    });
 
   // Update peta Indonesia dengan data yang difilter
   updateIndonesiaMap(filtered).catch(error => {
@@ -3716,6 +3862,7 @@ const bootstrap = async () => {
       omsetKotorTotal: document.querySelector('[data-omset-kotor-total]'),
       returTotal: document.querySelector('[data-retur-total]'),
       hargaJualTotal: document.querySelector('[data-harga-jual-total]'),
+      marginTotal: document.querySelector('[data-margin-total]'),
       breakdownLegend: document.getElementById('breakdownLegend'),
     };
 
