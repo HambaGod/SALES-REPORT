@@ -769,6 +769,10 @@ const transformGoogleSheetsData = (rows) => {
     }
     if (row['Subsidi Ongkir'] !== null && row['Subsidi Ongkir'] !== undefined && row['Subsidi Ongkir'] !== '') {
       totalSubsidiOngkir = toNumber(row['Subsidi Ongkir']);
+      // Debug: Log jika parsing berhasil
+      if (totalSubsidiOngkir > 0 && records.length < 5) {
+        console.log(`✓ Parsing Subsidi Ongkir dari row['Subsidi Ongkir']: ${row['Subsidi Ongkir']} → ${totalSubsidiOngkir}`);
+      }
     }
 
     // Prioritas 2: Jika belum ketemu, coba variasi nama
@@ -817,7 +821,12 @@ const transformGoogleSheetsData = (rows) => {
     if (totalSubsidiOngkir === 0 && headers.length > 22) {
       const colW = headers[22]; // Kolom W
       if (colW && row[colW] !== null && row[colW] !== undefined && row[colW] !== '') {
-        totalSubsidiOngkir = Math.abs(toNumber(row[colW]));
+        const rawValue = row[colW];
+        totalSubsidiOngkir = Math.abs(toNumber(rawValue));
+        // Debug: Log jika parsing dari index berhasil
+        if (totalSubsidiOngkir > 0 && records.length < 5) {
+          console.log(`✓ Parsing Subsidi Ongkir dari index 22 (${colW}): ${rawValue} → ${totalSubsidiOngkir}`);
+        }
       }
     }
 
@@ -843,7 +852,14 @@ const transformGoogleSheetsData = (rows) => {
       }
       if (allKeys.length > 22) {
         console.log('Column W (index 22):', allKeys[22], '=', row[allKeys[22]]);
+        console.log('Column W raw value:', row[allKeys[22]], 'type:', typeof row[allKeys[22]]);
+        console.log('Column W parsed:', toNumber(row[allKeys[22]]));
       }
+    }
+    
+    // Debug: Log untuk beberapa record dengan Subsidi Ongkir > 0
+    if (totalSubsidiOngkir > 0 && records.length < 10) {
+      console.log(`✓ Record ${records.length}: totalSubsidiOngkir = ${totalSubsidiOngkir}, dari row['Subsidi Ongkir'] = ${row['Subsidi Ongkir']}`);
     }
 
     // Omset = Harga Jual - Subsidi Ongkir
@@ -852,6 +868,33 @@ const transformGoogleSheetsData = (rows) => {
     // Ambil RESI dari kolom G (RESI)
     const resi = row['RESI'] || row['Resi'] || row['resi'] || '';
     const hasResi = resi && String(resi).trim().length > 0;
+    
+    // Ambil QTY AWB dari kolom M dengan header "Qty"
+    // Prioritas 1: Cari header "Qty" atau variasi namanya
+    let qtyAwb = 0;
+    const qtyHeaders = ['Qty', 'QTY', 'qty', 'QTY AWB', 'Qty AWB', 'qty awb'];
+    for (const headerName of qtyHeaders) {
+      if (row[headerName] !== null && row[headerName] !== undefined && row[headerName] !== '') {
+        qtyAwb = toNumber(row[headerName]);
+        if (qtyAwb > 0) break; // Jika sudah dapat nilai > 0, gunakan itu
+      }
+    }
+    
+    // Prioritas 2: Fallback ke index 12 (kolom M) jika header tidak ditemukan
+    if (qtyAwb === 0 && headers.length > 12) {
+      const columnMHeader = headers[12];
+      const qtyAwbValue = row[columnMHeader];
+      if (qtyAwbValue !== null && qtyAwbValue !== undefined && qtyAwbValue !== '') {
+        qtyAwb = toNumber(qtyAwbValue);
+      }
+    }
+    
+    // Debug untuk beberapa baris pertama
+    if (records.length < 3) {
+      console.log('=== QTY AWB DEBUG ===');
+      console.log('Qty AWB value:', qtyAwb);
+      console.log('Row Qty headers:', qtyHeaders.map(h => row[h]));
+    }
     
     // Ambil kolom "Nama CS" untuk toko/store (kolom C)
     // Kolom C berisi nama toko dengan suffix _T, _S, _L (contoh: HARMONIHERBAL_T, HEALNATURE_T)
@@ -874,9 +917,12 @@ const transformGoogleSheetsData = (rows) => {
     
     // Debug untuk beberapa baris pertama
     if (records.length < 3) {
-      console.log('=== STORE DEBUG ===');
-      console.log('Store name extracted from Nama CS:', storeName);
-      console.log('All headers:', headers.slice(0, 10));
+      console.log('=== DATA PARSING DEBUG ===');
+      console.log('Store name (Nama CS - kolom C):', storeName);
+      console.log('Qty AWB (kolom M):', qtyAwb);
+      console.log('Tanggal Order:', date);
+      console.log('All headers:', headers);
+      console.log('Sample row keys:', Object.keys(row).slice(0, 15));
     }
 
     records.push({
@@ -885,10 +931,12 @@ const transformGoogleSheetsData = (rows) => {
       year: date.getUTCFullYear(),
       month: date.getUTCMonth(),
       qty: toNumber(row.Qty),
+      qtyAwb: qtyAwb, // QTY AWB dari kolom M
       revenue,
       margin,
       omset, // Omset untuk card 1
       hargaJual: totalHargaJual, // Harga Jual dari kolom AA
+      subsidiOngkir: totalSubsidiOngkir, // Subsidi Ongkir dari kolom W (harus di-assign dengan benar)
       resi: hasResi ? resi : null, // RESI dari kolom G
       store: storeName, // Kolom C untuk toko/store
       transactionType: cleanText(row['Jenis Transaksi']),
@@ -1514,15 +1562,19 @@ const initDailyDataTable = (year, month) => {
     const dateObj = new Date(year, month - 1, day);
     const dateStr = `${day} ${monthNames[month - 1].substring(0, 3)} ${year}`;
 
-    // Style untuk kolom tanggal (harus terlihat penuh, lebih compact, tanpa border, sticky saat scroll horizontal)
+    // Style untuk kolom tanggal (harus terlihat penuh, lebih compact, dengan border grid abu-abu, sticky saat scroll horizontal)
     // Background akan di-update sesuai color palette atau tetap putih
     const dateCellBg = rowStyle.includes('background-color') ? '' : 'background-color: white;';
-    const dateCellStyle = `padding: 4px 8px; text-align: center; white-space: nowrap; position: sticky; left: 0; z-index: 5; ${dateCellBg} ${rowStyle}`;
+    const dateCellStyle = `padding: 4px 8px; text-align: center; white-space: nowrap; position: sticky; left: 0; z-index: 5; border-right: 1px solid #e0e0e0; border-bottom: 1px solid #e0e0e0; ${dateCellBg} ${rowStyle}`;
     
-    // Style dasar untuk sel lainnya (lebih compact, tanpa border)
-    const cellStyle = `padding: 4px 8px; text-align: center; white-space: nowrap; ${rowStyle}`;
+    // Style dasar untuk sel lainnya (lebih compact, dengan border grid abu-abu)
+    const cellStyle = `padding: 4px 8px; text-align: center; white-space: nowrap; border-right: 1px solid #e0e0e0; border-bottom: 1px solid #e0e0e0; ${rowStyle}`;
+    
+    // Style untuk kolom terakhir (tanpa border kanan)
+    const lastCellStyle = `padding: 4px 8px; text-align: center; white-space: nowrap; border-bottom: 1px solid #e0e0e0; ${rowStyle}`;
 
     // Kolom 1: TANGGAL (sudah terisi, harus terlihat penuh, sticky saat scroll horizontal)
+    // Struktur kolom: TANGGAL, QTY AWB, QTY Pcs, QTY AWB RTS, RTS, RTS (%), HARGA JUAL, Sub Ongkir, MARGIN, OMSET, OMSET BERSIH, BIAYA IKLAN, PROFIT, CPL, CAC, CPP, ROAS, ROI (%)
     row.innerHTML = `
       <td style="${dateCellStyle}">${dateStr}</td>
       <td style="${cellStyle}"></td>
@@ -1541,7 +1593,7 @@ const initDailyDataTable = (year, month) => {
       <td style="${cellStyle}"></td>
       <td style="${cellStyle}"></td>
       <td style="${cellStyle}"></td>
-      <td style="${cellStyle}"></td>
+      <td style="${lastCellStyle}"></td>
     `;
 
     tbody.appendChild(row);
@@ -1675,6 +1727,74 @@ const updateStickyHeaders = () => {
         cell.style.position = 'sticky';
         cell.style.left = '0';
         cell.style.zIndex = '5';
+        // Pastikan border grid ada
+        if (!cell.style.borderRight || cell.style.borderRight === 'none') {
+          cell.style.borderRight = '1px solid #e0e0e0';
+        }
+        if (!cell.style.borderBottom || cell.style.borderBottom === 'none') {
+          cell.style.borderBottom = '1px solid #e0e0e0';
+        }
+        // Pastikan background solid (putih atau sesuai row style)
+        if (!cell.style.backgroundColor || cell.style.backgroundColor === 'transparent') {
+          cell.style.backgroundColor = 'white';
+        }
+      });
+    }
+  }
+  
+  if (columnHeaders.length > 0) {
+    // Pastikan thead juga sticky
+    if (thead) {
+      thead.style.position = 'sticky';
+      thead.style.top = '0';
+      thead.style.zIndex = '1000';
+    }
+    
+    // Set semua header kolom sticky dengan top position 0
+    columnHeaders.forEach((header, index) => {
+      header.style.position = 'sticky';
+      header.style.top = '0';
+      
+      // Kolom pertama (TANGGAL) juga sticky saat scroll horizontal
+      if (index === 0) {
+        header.style.left = '0';
+        header.style.zIndex = '1002'; // Z-index lebih tinggi untuk kolom TANGGAL
+        // Pastikan background solid untuk header TANGGAL
+        if (chartColors && chartColors.length > 0) {
+          header.style.backgroundColor = chartColors[0];
+        }
+      } else {
+        header.style.zIndex = '1001'; // Pastikan di atas konten
+      }
+      
+      // Pastikan background solid
+      if (!header.style.backgroundColor || header.style.backgroundColor === 'transparent') {
+        // Jika belum ada background, set dari chartColors
+        if (chartColors && chartColors.length > 0) {
+          header.style.backgroundColor = chartColors[0];
+        }
+      }
+    });
+    
+    // Pastikan semua sel di kolom TANGGAL juga sticky horizontal
+    const tbody = document.getElementById('dailyDataTableBody');
+    if (tbody) {
+      tbody.style.position = 'relative';
+      tbody.style.zIndex = '1';
+      
+      // Update semua sel pertama (kolom TANGGAL) di tbody
+      const dateCells = tbody.querySelectorAll('tr td:first-child');
+      dateCells.forEach((cell) => {
+        cell.style.position = 'sticky';
+        cell.style.left = '0';
+        cell.style.zIndex = '5';
+        // Pastikan border grid ada
+        if (!cell.style.borderRight || cell.style.borderRight === 'none') {
+          cell.style.borderRight = '1px solid #e0e0e0';
+        }
+        if (!cell.style.borderBottom || cell.style.borderBottom === 'none') {
+          cell.style.borderBottom = '1px solid #e0e0e0';
+        }
         // Pastikan background solid (putih atau sesuai row style)
         if (!cell.style.backgroundColor || cell.style.backgroundColor === 'transparent') {
           cell.style.backgroundColor = 'white';
@@ -1689,6 +1809,11 @@ const updateStoreNameHeader = (storeName, year, month) => {
   // Simpan nama toko yang dipilih ke global state
   window.selectedStoreName = storeName || 'NAMA TOKO';
   
+  console.log(`=== UPDATE STORE NAME HEADER ===`);
+  console.log(`Store name: ${storeName}`);
+  console.log(`Year: ${year}, Month: ${month}`);
+  console.log(`window.selectedStoreName set to: ${window.selectedStoreName}`);
+  
   // Update judul "Data Harian Toko" dengan nama toko yang dipilih
   const dailyDataTitle = document.getElementById('dailyDataTitle');
   if (dailyDataTitle) {
@@ -1701,11 +1826,61 @@ const updateStoreNameHeader = (storeName, year, month) => {
   
   // Update tabel jika sudah ada
   if (year && month) {
-    initDailyDataTable(year, month);
-    // Update sticky headers setelah tabel di-update
+    // Dapatkan filtered records dari updateDashboard untuk update tabel
+    // Kita perlu memanggil updateDailyDataTable dengan filtered records
+    // Tapi karena kita tidak punya akses langsung ke filtered, kita akan update setelah sedikit delay
+    // agar updateDashboard sudah selesai
     setTimeout(() => {
-      updateStickyHeaders();
-    }, 50);
+      // Dapatkan month select untuk mendapatkan year dan month
+      const monthSelect = document.getElementById('monthSelect');
+      if (monthSelect && monthSelect.value) {
+        const selectedValue = monthSelect.value;
+        const [selectedYear, selectedMonth] = selectedValue.split('-').map(Number);
+        
+        // Dapatkan filtered records dari window (jika ada) atau gunakan window.records
+        // Tapi lebih baik kita panggil updateDashboard lagi untuk memastikan filtered records ter-update
+        // Atau kita bisa langsung update tabel dengan window.records yang sudah difilter
+        if (window.records && window.records.length > 0) {
+          // Filter records berdasarkan marketplace dan bulan yang dipilih
+          const revenueTypeSelect = document.getElementById('revenueType');
+          const marketplaceFilter = revenueTypeSelect ? revenueTypeSelect.value : 'All';
+          
+          // Filter berdasarkan marketplace dan bulan
+          let filtered = window.records.filter(record => {
+            if (!record.orderDate) return false;
+            const orderDate = new Date(record.orderDate);
+            const recordYear = orderDate.getFullYear();
+            const recordMonth = orderDate.getMonth() + 1;
+            
+            // Filter bulan
+            if (recordYear !== selectedYear || recordMonth !== selectedMonth) {
+              return false;
+            }
+            
+            // Filter marketplace jika bukan "All"
+            if (marketplaceFilter && marketplaceFilter !== 'All') {
+              // Filter berdasarkan store suffix
+              if (!record.store) return false;
+              const storeUpper = String(record.store).toUpperCase();
+              const filterUpper = marketplaceFilter.toUpperCase();
+              
+              if (filterUpper.includes('TIKTOK') || filterUpper === 'TIKTOK') {
+                if (!storeUpper.includes('_T')) return false;
+              } else if (filterUpper.includes('SHOPEE') || filterUpper === 'SHOPEE') {
+                if (!storeUpper.includes('_S')) return false;
+              } else if (filterUpper.includes('LAZADA') || filterUpper === 'LAZADA') {
+                if (!storeUpper.includes('_L')) return false;
+              }
+            }
+            
+            return true;
+          });
+          
+          // Update tabel dengan filtered records
+          updateDailyDataTable(filtered, selectedYear, selectedMonth);
+        }
+      }
+    }, 200);
   }
 };
 
@@ -1843,6 +2018,10 @@ const showStoreSelectionModal = (availableStores) => {
       });
 
       storeButton.addEventListener('click', () => {
+        // Set selectedStoreName terlebih dahulu
+        window.selectedStoreName = store;
+        console.log(`Toko dipilih: ${store}, window.selectedStoreName = ${window.selectedStoreName}`);
+        
         const monthSelect = document.getElementById('monthSelect');
         if (monthSelect && monthSelect.value) {
           const selectedValue = monthSelect.value;
@@ -1854,7 +2033,15 @@ const showStoreSelectionModal = (availableStores) => {
           const now = new Date();
           updateStoreNameHeader(store, now.getFullYear(), now.getMonth() + 1);
         }
+        
         modal.remove();
+        
+        // Panggil updateDashboard untuk refresh semua data termasuk tabel
+        if (typeof updateDashboard === 'function') {
+          setTimeout(() => {
+            updateDashboard();
+          }, 100);
+        }
       });
 
       storeList.appendChild(storeButton);
@@ -1901,14 +2088,420 @@ const showStoreSelectionModal = (availableStores) => {
 };
 
 // ===== FUNGSI UNTUK UPDATE TABEL DATA HARIAN =====
-// Fungsi ini akan dipanggil nanti untuk mengisi data ke tabel
+// filteredRecords = data yang sudah difilter berdasarkan marketplace dan bulan (sama seperti yang digunakan box QTY AWB)
+// Kita filter lagi berdasarkan toko yang dipilih, lalu hitung QTY AWB per tanggal
 const updateDailyDataTable = (filteredRecords, year, month) => {
-  // Untuk sementara, hanya inisialisasi tabel dengan tanggal
-  // Logika perhitungan akan ditambahkan nanti
+  // Inisialisasi tabel dengan tanggal
   initDailyDataTable(year, month);
   
-  // TODO: Nanti akan diisi dengan logika perhitungan untuk setiap kolom
-  // berdasarkan filteredRecords
+  // Tunggu sedikit agar DOM sudah ter-render
+  setTimeout(() => {
+    updateDailyDataTableData(filteredRecords, year, month);
+  }, 100);
+};
+
+// ===== FUNGSI UNTUK UPDATE DATA TABEL HARIAN =====
+const updateDailyDataTableData = (filteredRecords, year, month) => {
+  
+  // Pastikan ada data records
+  if (!filteredRecords || !Array.isArray(filteredRecords) || filteredRecords.length === 0) {
+    console.warn('Data filteredRecords belum tersedia untuk update tabel harian');
+    return;
+  }
+  
+  // Pastikan toko sudah dipilih
+  const selectedStore = window.selectedStoreName;
+  if (!selectedStore || selectedStore === 'NAMA TOKO') {
+    console.log('Toko belum dipilih, tabel akan kosong');
+    return;
+  }
+  
+  // Debug: Tampilkan sample records untuk troubleshooting
+  console.log('=== DEBUG UPDATE DAILY DATA TABLE ===');
+  console.log('Total filtered records (sudah filter marketplace & bulan):', filteredRecords.length);
+  console.log('Selected store:', selectedStore);
+  console.log('Year:', year, 'Month:', month);
+  
+  // Debug: Verifikasi bahwa data yang digunakan sesuai dengan bulan yang dipilih
+  if (filteredRecords.length > 0) {
+    const sampleDates = filteredRecords.slice(0, 5).map(r => {
+      const date = new Date(r.orderDate);
+      return {
+        orderDate: r.orderDate,
+        year: date.getFullYear(),
+        month: date.getMonth() + 1,
+        expectedYear: year,
+        expectedMonth: month
+      };
+    });
+    console.log('Sample dates dari filtered records:', sampleDates);
+    console.log(`✓ Data yang digunakan untuk tabel: ${month === 10 ? 'OKTOBER' : month === 11 ? 'NOVEMBER' : month === 9 ? 'SEPTEMBER' : `BULAN ${month}`} ${year}`);
+  }
+  
+  // Tampilkan sample store names dari filteredRecords
+  const sampleStores = [...new Set(filteredRecords.slice(0, 50).map(r => r.store).filter(Boolean))];
+  console.log('Sample store names dari filtered records (first 50):', sampleStores);
+  
+  // Filter records berdasarkan toko yang dipilih (dari kolom C - Nama CS)
+  // Logika: sama seperti box QTY AWB, tapi filter lagi berdasarkan toko
+  const storeFilteredRecords = filteredRecords.filter(record => {
+    if (!record.store) {
+      return false;
+    }
+    const recordStore = String(record.store).trim();
+    const selectedStoreTrimmed = String(selectedStore).trim();
+    
+    // Case-insensitive comparison untuk lebih fleksibel
+    const matches = recordStore.toLowerCase() === selectedStoreTrimmed.toLowerCase();
+    
+    return matches;
+  });
+  
+  // Debug: Tampilkan sample records yang match
+  if (storeFilteredRecords.length > 0) {
+    console.log('Sample matched records (first 5):', storeFilteredRecords.slice(0, 5).map(r => ({
+      store: r.store,
+      orderDate: r.orderDate,
+      resi: r.resi,
+      hasResi: r.resi !== null && r.resi !== undefined && r.resi !== '',
+      qty: r.qty,
+      hargaJual: r.hargaJual,
+      margin: r.margin,
+      subsidiOngkir: r.subsidiOngkir,
+      subsidiOngkirType: typeof r.subsidiOngkir,
+      subsidiOngkirValue: Number(r.subsidiOngkir) || 0
+    })));
+    
+    // Debug: Cek apakah ada record dengan subsidiOngkir > 0
+    const recordsWithSubOngkir = storeFilteredRecords.filter(r => {
+      const subOngkir = Number(r.subsidiOngkir) || 0;
+      return subOngkir > 0;
+    });
+    console.log(`Records dengan Sub Ongkir > 0: ${recordsWithSubOngkir.length} dari ${storeFilteredRecords.length}`);
+    if (recordsWithSubOngkir.length > 0) {
+      console.log('Sample records dengan Sub Ongkir > 0:', recordsWithSubOngkir.slice(0, 3).map(r => ({
+        tanggal: r.orderDate,
+        subsidiOngkir: r.subsidiOngkir,
+        hargaJual: r.hargaJual
+      })));
+    }
+  }
+  
+  console.log(`Filter toko "${selectedStore}": ${storeFilteredRecords.length} records ditemukan dari ${filteredRecords.length} filtered records`);
+  
+  if (storeFilteredRecords.length === 0) {
+    console.warn('Tidak ada records yang match dengan toko yang dipilih!');
+    console.log('Mungkin nama toko tidak match. Cek console untuk sample store names.');
+    
+    // Debug: Cek apakah ada store yang mirip
+    const allStores = [...new Set(filteredRecords.map(r => r.store).filter(Boolean))];
+    console.log('Semua store yang tersedia di filtered records:', allStores);
+    console.log('Store yang dicari:', selectedStore);
+    
+    return;
+  }
+  
+  // Hitung QTY AWB per tanggal
+  // Logika sama persis dengan box QTY AWB: filtered.filter(record => record.resi !== null).length
+  // Tapi kita group per tanggal dan filter berdasarkan toko
+  const qtyAwbByDate = {};
+  // Hitung QTY PCS per tanggal (dari kolom M - header "Qty")
+  const qtyPcsByDate = {};
+  // Hitung HARGA JUAL per tanggal (dari kolom AA - header "Harga Jual")
+  const hargaJualByDate = {};
+  // Hitung MARGIN per tanggal (dari kolom AD - header "Margin")
+  const marginByDate = {};
+  // Hitung Sub Ongkir per tanggal (dari kolom W - header "Subsidi Ongkir")
+  const subOngkirByDate = {};
+  // Hitung OMSET per tanggal (HARGA JUAL - SUB ONGKIR)
+  const omsetByDate = {};
+  let recordsInMonth = 0;
+  let recordsWithQtyAwb = 0;
+  let totalQtyPcs = 0;
+  let totalHargaJual = 0;
+  let totalMargin = 0;
+  let totalSubOngkir = 0;
+  
+  storeFilteredRecords.forEach(record => {
+    if (!record.orderDate) {
+      return;
+    }
+    
+    const orderDate = new Date(record.orderDate);
+    if (isNaN(orderDate.getTime())) {
+      return;
+    }
+    
+    const recordYear = orderDate.getFullYear();
+    const recordMonth = orderDate.getMonth() + 1; // getMonth() returns 0-11
+    const recordDay = orderDate.getDate();
+    
+    // Filter berdasarkan tahun dan bulan yang dipilih (seharusnya sudah difilter, tapi double check)
+    if (recordYear !== year || recordMonth !== month) {
+      return;
+    }
+    
+    recordsInMonth++;
+    
+    // Hitung QTY AWB: jumlah record yang memiliki resi (kolom G) yang tidak null
+    // SAMA PERSIS dengan box QTY AWB: record.resi !== null
+    const hasResi = record.resi !== null && record.resi !== undefined && record.resi !== '';
+    
+    if (hasResi) {
+      recordsWithQtyAwb++;
+      if (!qtyAwbByDate[recordDay]) {
+        qtyAwbByDate[recordDay] = 0;
+      }
+      // Setiap record dengan resi = 1 AWB (sama seperti box QTY AWB)
+      qtyAwbByDate[recordDay] += 1;
+    }
+    
+    // Hitung QTY PCS: jumlahkan qty dari kolom M (header "Qty")
+    // SAMA PERSIS: jumlahkan semua nilai per tanggal (tanpa filter > 0)
+    const qtyPcs = Number(record.qty) || 0;
+    totalQtyPcs += qtyPcs;
+    if (!qtyPcsByDate[recordDay]) {
+      qtyPcsByDate[recordDay] = 0;
+    }
+    qtyPcsByDate[recordDay] += qtyPcs;
+    
+    // Hitung HARGA JUAL: jumlahkan hargaJual dari kolom AA (header "Harga Jual)
+    // SAMA PERSIS seperti QTY PCS: jumlahkan semua nilai per tanggal
+    const hargaJual = Number(record.hargaJual) || 0;
+    totalHargaJual += hargaJual;
+    if (!hargaJualByDate[recordDay]) {
+      hargaJualByDate[recordDay] = 0;
+    }
+    hargaJualByDate[recordDay] += hargaJual;
+    
+    // Hitung Sub Ongkir: jumlahkan subsidiOngkir dari kolom W (header "Subsidi Ongkir")
+    // SAMA PERSIS seperti QTY PCS: jumlahkan semua nilai per tanggal
+    // Debug: Pastikan field subsidiOngkir ada dan ter-parse dengan benar
+    let subOngkir = 0;
+    if (record.subsidiOngkir !== null && record.subsidiOngkir !== undefined && record.subsidiOngkir !== '') {
+      subOngkir = Number(record.subsidiOngkir) || 0;
+    }
+    totalSubOngkir += subOngkir;
+    if (!subOngkirByDate[recordDay]) {
+      subOngkirByDate[recordDay] = 0;
+    }
+    subOngkirByDate[recordDay] += subOngkir;
+    
+    // Debug untuk beberapa record pertama
+    if (recordsInMonth <= 5 && subOngkir > 0) {
+      console.log(`✓ Record ${recordsInMonth}: Sub Ongkir = ${subOngkir}, dari record.subsidiOngkir = ${record.subsidiOngkir}`);
+    }
+    
+    // Hitung MARGIN: jumlahkan margin dari kolom AD (header "Margin")
+    // SAMA PERSIS seperti QTY PCS: jumlahkan semua nilai per tanggal (bisa negatif)
+    const margin = Number(record.margin) || 0;
+    totalMargin += margin;
+    if (!marginByDate[recordDay]) {
+      marginByDate[recordDay] = 0;
+    }
+    marginByDate[recordDay] += margin;
+    
+    // Debug untuk beberapa record pertama
+    if (recordsInMonth <= 5) {
+      console.log(`Record ${recordsInMonth}: tanggal ${recordDay}, resi: ${record.resi}, hasResi: ${hasResi}, qty: ${qtyPcs}, hargaJual: ${hargaJual}, margin: ${margin}, subOngkir: ${subOngkir}`);
+    }
+  });
+  
+  console.log(`=== QTY AWB Calculation Summary ===`);
+  console.log(`Records dalam bulan ${year}-${month}: ${recordsInMonth}`);
+  console.log(`Records dengan resi !== null: ${recordsWithQtyAwb}`);
+  console.log(`QTY AWB per tanggal:`, qtyAwbByDate);
+  
+  console.log(`=== QTY PCS Calculation Summary ===`);
+  console.log(`Total QTY PCS: ${totalQtyPcs}`);
+  console.log(`QTY PCS per tanggal:`, qtyPcsByDate);
+  
+  console.log(`=== HARGA JUAL Calculation Summary ===`);
+  console.log(`Total HARGA JUAL: ${totalHargaJual.toLocaleString('id-ID')}`);
+  console.log(`HARGA JUAL per tanggal:`, hargaJualByDate);
+  
+  console.log(`=== MARGIN Calculation Summary ===`);
+  console.log(`Total MARGIN: ${totalMargin.toLocaleString('id-ID')}`);
+  console.log(`MARGIN per tanggal:`, marginByDate);
+  
+  console.log(`=== Sub Ongkir Calculation Summary ===`);
+  console.log(`Total Sub Ongkir: ${totalSubOngkir.toLocaleString('id-ID')}`);
+  console.log(`Sub Ongkir per tanggal:`, subOngkirByDate);
+  console.log(`Records dengan Sub Ongkir > 0: ${storeFilteredRecords.filter(r => (Number(r.subsidiOngkir) || 0) > 0).length} dari ${storeFilteredRecords.length} records`);
+  
+  // Hitung OMSET per tanggal: HARGA JUAL - SUB ONGKIR (setelah aggregasi)
+  // OMSET dihitung setelah semua data di-aggregate per tanggal
+  const totalOmset = Object.keys(hargaJualByDate).reduce((sum, day) => {
+    const hargaJual = hargaJualByDate[day] || 0;
+    const subOngkir = subOngkirByDate[day] || 0;
+    const omset = Math.max(0, hargaJual - subOngkir); // Pastikan tidak negatif
+    omsetByDate[day] = omset;
+    return sum + omset;
+  }, 0);
+  
+  console.log(`=== OMSET Calculation Summary ===`);
+  console.log(`Total OMSET: ${totalOmset.toLocaleString('id-ID')}`);
+  console.log(`OMSET per tanggal:`, omsetByDate);
+  
+  // Update tabel dengan data QTY AWB
+  const tbody = document.getElementById('dailyDataTableBody');
+  if (!tbody) {
+    console.error('Tbody tidak ditemukan!');
+    return;
+  }
+  
+  const rows = tbody.querySelectorAll('tr');
+  console.log(`=== Update Tabel ===`);
+  console.log(`Jumlah baris di tabel: ${rows.length}`);
+  console.log(`Data QTY AWB yang akan diisi:`, qtyAwbByDate);
+  
+  let updatedCountAwb = 0;
+  let updatedCountPcs = 0;
+  let updatedCountHargaJual = 0;
+  let updatedCountMargin = 0;
+  let updatedCountSubOngkir = 0;
+  rows.forEach((row, index) => {
+    const day = index + 1;
+    const qtyAwb = qtyAwbByDate[day] || 0;
+    const qtyPcs = qtyPcsByDate[day] || 0;
+    const hargaJual = hargaJualByDate[day] || 0;
+    const margin = marginByDate[day] || 0;
+    const subOngkir = subOngkirByDate[day] || 0;
+    const omset = omsetByDate[day] || 0; // OMSET = HARGA JUAL - SUB ONGKIR (sudah di-aggregate per tanggal)
+    
+    // Update kolom QTY AWB (kolom ke-2, setelah TANGGAL)
+    const qtyAwbCell = row.querySelector('td:nth-child(2)');
+    if (qtyAwbCell) {
+      if (qtyAwb > 0) {
+        qtyAwbCell.textContent = qtyAwb.toLocaleString('id-ID');
+        updatedCountAwb++;
+        if (day <= 5) {
+          console.log(`✓ Baris ${day} (tanggal ${day}): QTY AWB = ${qtyAwb}`);
+        }
+      } else {
+        qtyAwbCell.textContent = '';
+        if (day <= 5) {
+          console.log(`✗ Baris ${day} (tanggal ${day}): QTY AWB = 0 (kosong)`);
+        }
+      }
+    } else {
+      console.error(`❌ Kolom QTY AWB tidak ditemukan untuk baris ${day}!`);
+    }
+    
+    // Update kolom QTY PCS (kolom ke-3, setelah QTY AWB)
+    const qtyPcsCell = row.querySelector('td:nth-child(3)');
+    if (qtyPcsCell) {
+      if (qtyPcs > 0) {
+        qtyPcsCell.textContent = qtyPcs.toLocaleString('id-ID');
+        updatedCountPcs++;
+        if (day <= 5) {
+          console.log(`✓ Baris ${day} (tanggal ${day}): QTY PCS = ${qtyPcs}`);
+        }
+      } else {
+        qtyPcsCell.textContent = '';
+        if (day <= 5) {
+          console.log(`✗ Baris ${day} (tanggal ${day}): QTY PCS = 0 (kosong)`);
+        }
+      }
+    } else {
+      console.error(`❌ Kolom QTY PCS tidak ditemukan untuk baris ${day}!`);
+    }
+    
+    // Update kolom HARGA JUAL (kolom ke-7, setelah RTS (%))
+    // SAMA PERSIS seperti QTY PCS: tampilkan jika !== 0, kosongkan jika 0
+    const hargaJualCell = row.querySelector('td:nth-child(7)');
+    if (hargaJualCell) {
+      if (hargaJual !== 0) {
+        // Format sebagai currency (Rupiah)
+        hargaJualCell.textContent = hargaJual.toLocaleString('id-ID');
+        updatedCountHargaJual++;
+        if (day <= 5) {
+          console.log(`✓ Baris ${day} (tanggal ${day}): HARGA JUAL = ${hargaJual.toLocaleString('id-ID')}`);
+        }
+      } else {
+        hargaJualCell.textContent = '';
+        if (day <= 5) {
+          console.log(`✗ Baris ${day} (tanggal ${day}): HARGA JUAL = 0 (kosong)`);
+        }
+      }
+    } else {
+      console.error(`❌ Kolom HARGA JUAL tidak ditemukan untuk baris ${day}!`);
+    }
+    
+    // Update kolom Sub Ongkir (kolom ke-8, setelah HARGA JUAL)
+    // SAMA PERSIS seperti QTY PCS: tampilkan jika !== 0, kosongkan jika 0
+    const subOngkirCell = row.querySelector('td:nth-child(8)');
+    if (subOngkirCell) {
+      if (subOngkir !== 0) {
+        // Format sebagai currency (Rupiah)
+        subOngkirCell.textContent = subOngkir.toLocaleString('id-ID');
+        updatedCountSubOngkir++;
+        if (day <= 5) {
+          console.log(`✓ Baris ${day} (tanggal ${day}): Sub Ongkir = ${subOngkir.toLocaleString('id-ID')}`);
+        }
+      } else {
+        subOngkirCell.textContent = '';
+        if (day <= 5) {
+          console.log(`✗ Baris ${day} (tanggal ${day}): Sub Ongkir = 0 (kosong)`);
+        }
+      }
+    } else {
+      console.error(`❌ Kolom Sub Ongkir tidak ditemukan untuk baris ${day}!`);
+    }
+    
+    // Update kolom MARGIN (kolom ke-9, setelah Sub Ongkir)
+    // SAMA PERSIS seperti QTY PCS: tampilkan jika !== 0 (bisa negatif), kosongkan jika 0
+    const marginCell = row.querySelector('td:nth-child(9)');
+    if (marginCell) {
+      if (margin !== 0) {
+        // Format sebagai currency (Rupiah)
+        marginCell.textContent = margin.toLocaleString('id-ID');
+        updatedCountMargin++;
+        if (day <= 5) {
+          console.log(`✓ Baris ${day} (tanggal ${day}): MARGIN = ${margin.toLocaleString('id-ID')}`);
+        }
+      } else {
+        marginCell.textContent = '';
+        if (day <= 5) {
+          console.log(`✗ Baris ${day} (tanggal ${day}): MARGIN = 0 (kosong)`);
+        }
+      }
+    } else {
+      console.error(`❌ Kolom MARGIN tidak ditemukan untuk baris ${day}!`);
+    }
+    
+    // Update kolom OMSET (kolom ke-10, setelah MARGIN)
+    // OMSET = HARGA JUAL - SUB ONGKIR (sudah di-aggregate per tanggal)
+    const omsetCell = row.querySelector('td:nth-child(10)');
+    if (omsetCell) {
+      if (omset !== 0) {
+        // Format sebagai currency (Rupiah)
+        omsetCell.textContent = omset.toLocaleString('id-ID');
+        if (day <= 5) {
+          console.log(`✓ Baris ${day} (tanggal ${day}): OMSET = ${omset.toLocaleString('id-ID')} (HARGA JUAL: ${hargaJual.toLocaleString('id-ID')} - SUB ONGKIR: ${subOngkir.toLocaleString('id-ID')})`);
+        }
+      } else {
+        omsetCell.textContent = '';
+        if (day <= 5) {
+          console.log(`✗ Baris ${day} (tanggal ${day}): OMSET = 0 (kosong)`);
+        }
+      }
+    } else {
+      console.error(`❌ Kolom OMSET tidak ditemukan untuk baris ${day}!`);
+    }
+  });
+  
+  console.log(`=== Summary ===`);
+  console.log(`Total ${updatedCountAwb} baris di-update dengan data QTY AWB`);
+  console.log(`Total ${Object.keys(qtyAwbByDate).length} tanggal memiliki data QTY AWB`);
+  console.log(`Total ${updatedCountPcs} baris di-update dengan data QTY PCS`);
+  console.log(`Total ${Object.keys(qtyPcsByDate).length} tanggal memiliki data QTY PCS`);
+  console.log(`Total ${updatedCountSubOngkir} baris di-update dengan data Sub Ongkir`);
+  console.log(`Total ${Object.keys(subOngkirByDate).length} tanggal memiliki data Sub Ongkir`);
+  console.log(`Total ${updatedCountHargaJual} baris di-update dengan data HARGA JUAL`);
+  console.log(`Total ${Object.keys(hargaJualByDate).length} tanggal memiliki data HARGA JUAL`);
+  console.log(`Total ${updatedCountMargin} baris di-update dengan data MARGIN`);
+  console.log(`Total ${Object.keys(marginByDate).length} tanggal memiliki data MARGIN`);
 };
 
 const aggregateVariance = (data) => {
@@ -4124,11 +4717,15 @@ const updateDashboard = () => {
     });
 
   // Update tabel data harian dengan data yang difilter
+  // Pastikan dipanggil setelah semua filter diterapkan
   if (monthSelect && monthSelect.value) {
     const selectedValue = monthSelect.value;
     const [year, month] = selectedValue.split('-').map(Number);
     if (year && month) {
-      updateDailyDataTable(filtered, year, month);
+      // Tunggu sedikit agar semua state sudah ter-update
+      setTimeout(() => {
+        updateDailyDataTable(filtered, year, month);
+      }, 50);
     }
   }
 
@@ -4282,6 +4879,14 @@ const bootstrap = async () => {
       console.log('Sample record:', window.records[0]);
       console.log('Sample record has store field:', !!window.records[0].store);
       console.log('Sample record store value:', window.records[0].store);
+      console.log('Sample record has qtyAwb field:', !!window.records[0].qtyAwb);
+      console.log('Sample record qtyAwb value:', window.records[0].qtyAwb);
+      console.log('Sample record qty value:', window.records[0].qty);
+      
+      // Tampilkan unique store names untuk debugging
+      const uniqueStores = [...new Set(window.records.map(r => r.store).filter(Boolean))];
+      console.log('Total unique stores:', uniqueStores.length);
+      console.log('First 10 unique stores:', uniqueStores.slice(0, 10));
     }
 
     if (!dataLoaded) {
