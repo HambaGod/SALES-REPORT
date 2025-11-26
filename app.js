@@ -1116,7 +1116,7 @@ const colorPalettes = {
 };
 
 let displayMode = 'light';
-let chartColors = colorPalettes.light[4];
+let chartColors = colorPalettes.light[1];
 
 const charts = {};
 let trendLineMode = 'revenue';
@@ -1501,13 +1501,7 @@ const initDailyDataTable = (year, month) => {
   const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 
                       'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 
-  // Update header nama toko (mengikuti toko yang dipilih)
-  const storeNameHeader = document.getElementById('storeNameHeader');
-  if (storeNameHeader) {
-    // Ambil nama toko yang dipilih dari state atau default "NAMA TOKO"
-    const selectedStore = window.selectedStoreName || 'NAMA TOKO';
-    storeNameHeader.textContent = `${selectedStore} - ${monthNames[month - 1]} ${year}`;
-  }
+  // Header nama toko sudah dihapus, tidak perlu update lagi
 
   // Buat baris data sesuai jumlah hari dalam bulan (28, 29, 30, atau 31)
   for (let day = 1; day <= daysInMonth; day++) {
@@ -1520,13 +1514,15 @@ const initDailyDataTable = (year, month) => {
     const dateObj = new Date(year, month - 1, day);
     const dateStr = `${day} ${monthNames[month - 1].substring(0, 3)} ${year}`;
 
-    // Style untuk kolom tanggal (harus terlihat penuh, lebih compact, tanpa border)
-    const dateCellStyle = `padding: 4px 8px; text-align: center; white-space: nowrap; ${rowStyle}`;
+    // Style untuk kolom tanggal (harus terlihat penuh, lebih compact, tanpa border, sticky saat scroll horizontal)
+    // Background akan di-update sesuai color palette atau tetap putih
+    const dateCellBg = rowStyle.includes('background-color') ? '' : 'background-color: white;';
+    const dateCellStyle = `padding: 4px 8px; text-align: center; white-space: nowrap; position: sticky; left: 0; z-index: 5; ${dateCellBg} ${rowStyle}`;
     
     // Style dasar untuk sel lainnya (lebih compact, tanpa border)
     const cellStyle = `padding: 4px 8px; text-align: center; white-space: nowrap; ${rowStyle}`;
 
-    // Kolom 1: TANGGAL (sudah terisi, harus terlihat penuh)
+    // Kolom 1: TANGGAL (sudah terisi, harus terlihat penuh, sticky saat scroll horizontal)
     row.innerHTML = `
       <td style="${dateCellStyle}">${dateStr}</td>
       <td style="${cellStyle}"></td>
@@ -1556,8 +1552,13 @@ const initDailyDataTable = (year, month) => {
     // Tunggu sedikit agar DOM sudah ter-render
     setTimeout(() => {
       applyColorPalette();
+      // Set sticky header setelah apply color palette
+      updateStickyHeaders();
     }, 100);
   }
+  
+  // Set sticky header
+  updateStickyHeaders();
 
   console.log(`Tabel data harian berhasil dibuat untuk ${monthNames[month - 1]} ${year} (${daysInMonth} baris)`);
 };
@@ -1623,22 +1624,88 @@ const getAvailableStores = (marketplaceFilter) => {
   return result;
 };
 
+// ===== FUNGSI UNTUK UPDATE STICKY HEADERS =====
+const updateStickyHeaders = () => {
+  const columnHeaders = document.querySelectorAll('#dailyDataTableContent thead tr th');
+  const thead = document.querySelector('#dailyDataTableContent thead');
+  
+  if (columnHeaders.length > 0) {
+    // Pastikan thead juga sticky
+    if (thead) {
+      thead.style.position = 'sticky';
+      thead.style.top = '0';
+      thead.style.zIndex = '10';
+    }
+    
+    // Set semua header kolom sticky dengan top position 0
+    columnHeaders.forEach((header, index) => {
+      header.style.position = 'sticky';
+      header.style.top = '0';
+      
+      // Kolom pertama (TANGGAL) juga sticky saat scroll horizontal
+      if (index === 0) {
+        header.style.left = '0';
+        header.style.zIndex = '12'; // Z-index lebih tinggi untuk kolom TANGGAL
+        // Pastikan background solid untuk header TANGGAL
+        if (chartColors && chartColors.length > 0) {
+          header.style.backgroundColor = chartColors[0];
+        }
+      } else {
+        header.style.zIndex = '11'; // Pastikan di atas konten
+      }
+      
+      // Pastikan background solid
+      if (!header.style.backgroundColor || header.style.backgroundColor === 'transparent') {
+        // Jika belum ada background, set dari chartColors
+        if (chartColors && chartColors.length > 0) {
+          header.style.backgroundColor = chartColors[0];
+        }
+      }
+    });
+    
+    // Pastikan semua sel di kolom TANGGAL juga sticky horizontal
+    const tbody = document.getElementById('dailyDataTableBody');
+    if (tbody) {
+      tbody.style.position = 'relative';
+      tbody.style.zIndex = '1';
+      
+      // Update semua sel pertama (kolom TANGGAL) di tbody
+      const dateCells = tbody.querySelectorAll('tr td:first-child');
+      dateCells.forEach((cell) => {
+        cell.style.position = 'sticky';
+        cell.style.left = '0';
+        cell.style.zIndex = '5';
+        // Pastikan background solid (putih atau sesuai row style)
+        if (!cell.style.backgroundColor || cell.style.backgroundColor === 'transparent') {
+          cell.style.backgroundColor = 'white';
+        }
+      });
+    }
+  }
+};
+
 // ===== FUNGSI UNTUK UPDATE HEADER NAMA TOKO =====
 const updateStoreNameHeader = (storeName, year, month) => {
   // Simpan nama toko yang dipilih ke global state
   window.selectedStoreName = storeName || 'NAMA TOKO';
   
-  // Update header tabel
-  const storeNameHeader = document.getElementById('storeNameHeader');
-  if (storeNameHeader) {
-    const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 
-                        'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
-    storeNameHeader.textContent = `${window.selectedStoreName} - ${monthNames[month - 1]} ${year}`;
+  // Update judul "Data Harian Toko" dengan nama toko yang dipilih
+  const dailyDataTitle = document.getElementById('dailyDataTitle');
+  if (dailyDataTitle) {
+    if (storeName && storeName !== 'NAMA TOKO') {
+      dailyDataTitle.textContent = `Data Harian Toko ${storeName}`;
+    } else {
+      dailyDataTitle.textContent = 'Data Harian Toko';
+    }
   }
   
   // Update tabel jika sudah ada
   if (year && month) {
     initDailyDataTable(year, month);
+    // Update sticky headers setelah tabel di-update
+    setTimeout(() => {
+      updateStickyHeaders();
+    }, 50);
   }
 };
 
@@ -2116,12 +2183,19 @@ const initFilters = () => {
         
         // Reset toko yang dipilih
         window.selectedStoreName = 'NAMA TOKO';
+        
+        // Reset judul ke "Data Harian Toko" saja
+        const dailyDataTitle = document.getElementById('dailyDataTitle');
+        if (dailyDataTitle) {
+          dailyDataTitle.textContent = 'Data Harian Toko';
+        }
+        
         const monthSelect = document.getElementById('monthSelect');
         if (monthSelect && monthSelect.value) {
           const selectedValue = monthSelect.value;
           const [year, month] = selectedValue.split('-').map(Number);
           if (year && month) {
-            updateStoreNameHeader('NAMA TOKO', year, month);
+            initDailyDataTable(year, month);
           }
         }
       } else {
@@ -2143,14 +2217,14 @@ const initFilters = () => {
 
   elements.displayMode.addEventListener('change', () => {
     displayMode = elements.displayMode.value || 'light';
-    const paletteId = elements.colorPalette.value || '4';
+    const paletteId = elements.colorPalette.value || '1';
     // Pastikan chartColors selalu valid (wallpaper menggunakan light palette)
     const modeForPalette = displayMode === 'wallpaper' ? 'light' : displayMode;
     const modePalettes = colorPalettes[modeForPalette];
     if (modePalettes && modePalettes[paletteId]) {
       chartColors = modePalettes[paletteId];
     } else {
-      chartColors = colorPalettes.light[4]; // Fallback
+      chartColors = colorPalettes.light[1]; // Fallback
     }
     applyDisplayMode();
     applyColorPalette();
@@ -2158,14 +2232,14 @@ const initFilters = () => {
   });
 
   elements.colorPalette.addEventListener('change', () => {
-    const paletteId = elements.colorPalette.value || '4';
+    const paletteId = elements.colorPalette.value || '1';
     // Pastikan chartColors selalu valid (wallpaper menggunakan light palette)
     const modeForPalette = displayMode === 'wallpaper' ? 'light' : displayMode;
     const modePalettes = colorPalettes[modeForPalette];
     if (modePalettes && modePalettes[paletteId]) {
       chartColors = modePalettes[paletteId];
     } else {
-      chartColors = colorPalettes.light[4]; // Fallback
+      chartColors = colorPalettes.light[1]; // Fallback
     }
     applyColorPalette();
     updateDashboard();
@@ -2787,12 +2861,12 @@ const applyDisplayMode = () => {
     // Disable color palette select dan set ke palette 4 saat wallpaper mode
     if (elements.colorPalette) {
       elements.colorPalette.disabled = true;
-      elements.colorPalette.value = '4';
-      // Update chartColors ke palette 4
+      elements.colorPalette.value = '1';
+      // Update chartColors ke palette 1
       const modeForPalette = 'light'; // Wallpaper menggunakan light palette
       const modePalettes = colorPalettes[modeForPalette];
-      if (modePalettes && modePalettes[4]) {
-        chartColors = modePalettes[4];
+      if (modePalettes && modePalettes[1]) {
+        chartColors = modePalettes[1];
         applyColorPalette();
       }
     }
@@ -3214,31 +3288,27 @@ const applyColorPalette = () => {
     return { r, g, b };
   };
 
-  // Update warna tabel data harian berdasarkan palette
-  const storeNameHeader = document.getElementById('storeNameHeader');
-  if (storeNameHeader && chartColors && chartColors.length > 0) {
-    const headerRow = storeNameHeader.closest('th');
-    if (headerRow) {
-      // Header "NAMA TOKO" menggunakan warna pertama dengan opacity lebih rendah (light pink effect)
-      const primaryColor = chartColors[0];
-      const hexToRgba = (hex, alpha) => {
-        const r = parseInt(hex.slice(1, 3), 16);
-        const g = parseInt(hex.slice(3, 5), 16);
-        const b = parseInt(hex.slice(5, 7), 16);
-        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-      };
-      headerRow.style.backgroundColor = hexToRgba(primaryColor, 0.3); // Light pink effect dengan opacity 0.3
-    }
-  }
-
-  // Update warna header kolom (hijau) menggunakan warna pertama dari palette
-  const columnHeaders = document.querySelectorAll('#dailyDataTableContent thead tr:last-child th');
+  // Update warna header kolom menggunakan warna pertama dari palette
+  const columnHeaders = document.querySelectorAll('#dailyDataTableContent thead tr th');
   if (columnHeaders.length > 0 && chartColors && chartColors.length > 0) {
-    columnHeaders.forEach((header) => {
+    columnHeaders.forEach((header, index) => {
       header.style.backgroundColor = chartColors[0]; // Warna pertama dari palette
       header.style.color = '#ffffff'; // Tetap putih untuk kontras
+      header.style.position = 'sticky'; // Pastikan sticky
+      header.style.top = '0'; // Posisi di top
+      
+      // Kolom pertama (TANGGAL) juga sticky saat scroll horizontal
+      if (index === 0) {
+        header.style.left = '0';
+        header.style.zIndex = '12'; // Z-index lebih tinggi untuk kolom TANGGAL
+      } else {
+        header.style.zIndex = '11'; // Pastikan di atas konten
+      }
     });
   }
+  
+  // Update sticky headers setelah warna di-update
+  updateStickyHeaders();
 
   // Update refresh button color berdasarkan palette
   const refreshBtn = document.getElementById('refreshBtn');
@@ -4247,7 +4317,7 @@ const bootstrap = async () => {
 
     // Initialize display mode dan color palette dengan validasi
     displayMode = elements.displayMode ? (elements.displayMode.value || 'light') : 'light';
-    const paletteId = elements.colorPalette ? (elements.colorPalette.value || '4') : '4';
+    const paletteId = elements.colorPalette ? (elements.colorPalette.value || '1') : '1';
 
     // Pastikan chartColors selalu valid (wallpaper menggunakan light palette)
     const modeForPalette = displayMode === 'wallpaper' ? 'light' : displayMode;
@@ -4255,7 +4325,7 @@ const bootstrap = async () => {
     if (modePalettes && modePalettes[paletteId]) {
       chartColors = modePalettes[paletteId];
     } else {
-      chartColors = colorPalettes.light[4]; // Fallback ke light mode palette 4
+      chartColors = colorPalettes.light[1]; // Fallback ke light mode palette 1
     }
 
     initFilters();

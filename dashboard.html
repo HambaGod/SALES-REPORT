@@ -55,10 +55,10 @@
         <div class="filter">
           <label for="colorPalette">Color Palette</label>
           <select id="colorPalette">
-            <option value="1">Palette 1</option>
+            <option value="1" selected>Palette 1</option>
             <option value="2">Palette 2</option>
             <option value="3">Palette 3</option>
-            <option value="4" selected>Palette 4</option>
+            <option value="4">Palette 4</option>
           </select>
         </div>
       </section>
@@ -211,8 +211,8 @@
           <span class="card-number">7</span>
           <header>
             <div>
-              <h2>Data Harian Toko</h2>
-              <p class="subtitle">Detail transaksi per hari</p>
+              <h2 id="dailyDataTitle">Data Harian Toko</h2>
+              <p class="subtitle">Detail transaksi / hari</p>
             </div>
             <div style="position: relative;">
               <button id="selectStoreBtn" style="padding: 8px 16px; border-radius: 8px; border: none; background-color: #e0e0e0; color: #fff; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.1);" title="Pilih Jenis Marketplace">
@@ -224,16 +224,11 @@
               </div>
             </div>
           </header>
-          <div id="dailyDataTable" style="overflow-x: auto; border-radius: 12px;">
-            <table id="dailyDataTableContent" style="width: 100%; border-collapse: collapse; font-size: 0.875rem; min-width: max-content; border: none;">
+          <div id="dailyDataTable" style="overflow-x: auto; overflow-y: auto; border-radius: 12px; max-height: 600px; position: relative; display: block;">
+            <table id="dailyDataTableContent" style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.875rem; min-width: max-content; border: none; position: relative;">
               <thead>
-                <tr>
-                  <th colspan="18" style="background-color: #ffcccc; padding: 6px; text-align: center; font-weight: 600;">
-                    <span id="storeNameHeader">NAMA TOKO</span>
-                  </th>
-                </tr>
-                <tr style="background-color: #4caf50; color: #ffffff;">
-                  <th style="padding: 6px 8px; text-align: center; font-weight: 600; white-space: nowrap;">TANGGAL</th>
+                <tr id="columnHeaderRow" style="background-color: #4caf50; color: #ffffff; position: sticky; top: 0; z-index: 11;">
+                  <th style="padding: 6px 8px; text-align: center; font-weight: 600; white-space: nowrap; position: sticky; left: 0; z-index: 12; background-color: inherit;">TANGGAL</th>
                   <th style="padding: 6px 8px; text-align: center; font-weight: 600; white-space: nowrap;">QTY AWB</th>
                   <th style="padding: 6px 8px; text-align: center; font-weight: 600; white-space: nowrap;">QTY Pcs</th>
                   <th style="padding: 6px 8px; text-align: center; font-weight: 600; white-space: nowrap;">CLOSING RATE (%)</th>
