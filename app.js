@@ -243,15 +243,10 @@ const fetchReturData = async (monthKey = null, marketplaceFilter = 'All') => {
         }
       }
 
-      // Cari kolom tanggal (TANGGAL INPUT RETUR atau TANGGAL ORDER)
+      // Kolom A (index 0) adalah tanggal untuk file retur
       let dateColumnName = '';
-      const dateColumnNames = ['TANGGAL INPUT RETUR', 'Tanggal Input Retur', 'TANGGAL ORDER', 'Tanggal Order'];
-      for (let i = 0; i < headers.length; i++) {
-        const headerName = headers[i] ? headers[i].trim() : '';
-        if (dateColumnNames.some(name => headerName.toUpperCase() === name.toUpperCase())) {
-          dateColumnName = headers[i];
-          break;
-        }
+      if (headers.length > 0) {
+        dateColumnName = headers[0]; // Kolom A = index 0
       }
 
       if (columnCIndex === -1 || !columnCName) {
@@ -314,13 +309,58 @@ const fetchReturData = async (monthKey = null, marketplaceFilter = 'All') => {
             if (numValue !== 0) {
               count++;
 
-              // Simpan record untuk chart
+              // Simpan record untuk chart dan tabel (dengan data lengkap untuk AWB RTS)
               const dateValue = dateColumnName ? parseDate(row[dateColumnName]) : null;
+              
+              // Ambil kolom B (Nama CS) untuk filter toko
+              const namaCS = columnBName ? (row[columnBName] || '') : '';
+              
+              // Ambil kolom Q (Tracking ID) untuk AWB
+              // Kolom Q = index 16 (A=0, B=1, ..., Q=16)
+              let trackingID = '';
+              if (headers.length > 16) {
+                const columnQName = headers[16];
+                trackingID = row[columnQName] || '';
+              } else {
+                // Coba cari berdasarkan nama header
+                const possibleNames = ['Tracking ID', 'TRACKING ID', 'tracking id', 'Tracking Id', 'TRACKING'];
+                for (let i = 0; i < headers.length; i++) {
+                  const headerName = headers[i] ? headers[i].trim() : '';
+                  if (possibleNames.some(name => headerName.toUpperCase().includes(name.toUpperCase()))) {
+                    trackingID = row[headers[i]] || '';
+                    break;
+                  }
+                }
+              }
+              
+              // Ambil kolom X (PENYESUAIAN RTS) untuk RTS (Oktober menggunakan kolom X)
+              // Kolom X = index 23 (A=0, B=1, ..., X=23)
+              let penyesuaianRTS = '';
+              if (columnXName) {
+                penyesuaianRTS = row[columnXName] || '';
+              } else if (headers.length > 23) {
+                const columnXNameFromIndex = headers[23];
+                penyesuaianRTS = row[columnXNameFromIndex] || '';
+              } else {
+                // Coba cari berdasarkan nama header
+                const possibleNames = ['PENYESUAIAN RTS', 'Penyesuaian RTS', 'penyesuaian rts', 'PENYESUAIAN RTS '];
+                for (let i = 0; i < headers.length; i++) {
+                  const headerName = headers[i] ? headers[i].trim() : '';
+                  if (possibleNames.some(name => headerName.toUpperCase().includes(name.toUpperCase()))) {
+                    penyesuaianRTS = row[headers[i]] || '';
+                    break;
+                  }
+                }
+              }
+              
               if (dateValue) {
                 returRecords.push({
                   date: dateValue,
                   orderTs: dateValue.getTime(),
-                  returValue: numValue
+                  returValue: numValue,
+                  namaCS: String(namaCS).trim(), // Kolom B - Nama CS untuk filter toko
+                  trackingID: String(trackingID).trim(), // Kolom Q - Tracking ID untuk AWB
+                  penyesuaianRTS: String(penyesuaianRTS).trim() // Kolom X (Oktober) atau Y (November) - PENYESUAIAN RTS untuk RTS
                 });
               }
             }
@@ -374,15 +414,10 @@ const fetchReturData = async (monthKey = null, marketplaceFilter = 'All') => {
         }
       }
 
-      // Cari kolom tanggal (TANGGAL INPUT RETUR atau TANGGAL ORDER)
+      // Kolom A (index 0) adalah tanggal untuk file retur
       let dateColumnName = '';
-      const dateColumnNames = ['TANGGAL INPUT RETUR', 'Tanggal Input Retur', 'TANGGAL ORDER', 'Tanggal Order'];
-      for (let i = 0; i < headers.length; i++) {
-        const headerName = headers[i] ? headers[i].trim() : '';
-        if (dateColumnNames.some(name => headerName.toUpperCase() === name.toUpperCase())) {
-          dateColumnName = headers[i];
-          break;
-        }
+      if (headers.length > 0) {
+        dateColumnName = headers[0]; // Kolom A = index 0
       }
 
       if (columnDIndex === -1 || !columnDName) {
@@ -445,13 +480,58 @@ const fetchReturData = async (monthKey = null, marketplaceFilter = 'All') => {
             if (numValue !== 0) {
               count++;
 
-              // Simpan record untuk chart
+              // Simpan record untuk chart dan tabel (dengan data lengkap untuk AWB RTS)
               const dateValue = dateColumnName ? parseDate(row[dateColumnName]) : null;
+              
+              // Ambil kolom B (Nama CS) untuk filter toko
+              const namaCS = columnBName ? (row[columnBName] || '') : '';
+              
+              // Ambil kolom Q (Tracking ID) untuk AWB
+              // Kolom Q = index 16 (A=0, B=1, ..., Q=16)
+              let trackingID = '';
+              if (headers.length > 16) {
+                const columnQName = headers[16];
+                trackingID = row[columnQName] || '';
+              } else {
+                // Coba cari berdasarkan nama header
+                const possibleNames = ['Tracking ID', 'TRACKING ID', 'tracking id', 'Tracking Id', 'TRACKING'];
+                for (let i = 0; i < headers.length; i++) {
+                  const headerName = headers[i] ? headers[i].trim() : '';
+                  if (possibleNames.some(name => headerName.toUpperCase().includes(name.toUpperCase()))) {
+                    trackingID = row[headers[i]] || '';
+                    break;
+                  }
+                }
+              }
+              
+              // Ambil kolom Y (PENYESUAIAN RTS) untuk RTS (November menggunakan kolom Y)
+              // Kolom Y = index 24 (A=0, B=1, ..., Y=24)
+              let penyesuaianRTS = '';
+              if (columnYName) {
+                penyesuaianRTS = row[columnYName] || '';
+              } else if (headers.length > 24) {
+                const columnYNameFromIndex = headers[24];
+                penyesuaianRTS = row[columnYNameFromIndex] || '';
+              } else {
+                // Coba cari berdasarkan nama header
+                const possibleNames = ['PENYESUAIAN RTS', 'Penyesuaian RTS', 'penyesuaian rts', 'PENYESUAIAN RTS '];
+                for (let i = 0; i < headers.length; i++) {
+                  const headerName = headers[i] ? headers[i].trim() : '';
+                  if (possibleNames.some(name => headerName.toUpperCase().includes(name.toUpperCase()))) {
+                    penyesuaianRTS = row[headers[i]] || '';
+                    break;
+                  }
+                }
+              }
+              
               if (dateValue) {
                 returRecords.push({
                   date: dateValue,
                   orderTs: dateValue.getTime(),
-                  returValue: numValue
+                  returValue: numValue,
+                  namaCS: String(namaCS).trim(), // Kolom B - Nama CS untuk filter toko
+                  trackingID: String(trackingID).trim(), // Kolom Q - Tracking ID untuk AWB
+                  penyesuaianRTS: String(penyesuaianRTS).trim() // Kolom Y (November) - PENYESUAIAN RTS untuk RTS
                 });
               }
             }
@@ -1574,7 +1654,7 @@ const initDailyDataTable = (year, month) => {
     const lastCellStyle = `padding: 4px 8px; text-align: center; white-space: nowrap; border-bottom: 1px solid #e0e0e0; ${rowStyle}`;
 
     // Kolom 1: TANGGAL (sudah terisi, harus terlihat penuh, sticky saat scroll horizontal)
-    // Struktur kolom: TANGGAL, QTY AWB, QTY Pcs, QTY AWB RTS, RTS, RTS (%), HARGA JUAL, Sub Ongkir, MARGIN, OMSET, OMSET BERSIH, BIAYA IKLAN, PROFIT, CPL, CAC, CPP, ROAS, ROI (%)
+    // Struktur kolom: TANGGAL, QTY AWB, QTY Pcs, AWB RTS, RTS, RTS (%), HARGA JUAL, Sub Ongkir, MARGIN, OMSET, OMSET BERSIH, BIAYA IKLAN, PROFIT, CPL, CAC, CPP, ROAS, ROI (%)
     row.innerHTML = `
       <td style="${dateCellStyle}">${dateStr}</td>
       <td style="${cellStyle}"></td>
@@ -2215,6 +2295,12 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
   const subOngkirByDate = {};
   // Hitung OMSET per tanggal (HARGA JUAL - SUB ONGKIR)
   const omsetByDate = {};
+  // Hitung OMSET BERSIH per tanggal (OMSET - RTS)
+  const omsetBersihByDate = {};
+  // Hitung AWB RTS per tanggal (dari file retur - kolom Q Tracking ID, filter kolom B Nama CS)
+  const qtyAwbRtsByDate = {};
+  // Hitung RTS per tanggal (dari file retur - kolom Y PENYESUAIAN RTS, filter kolom B Nama CS)
+  const rtsByDate = {};
   let recordsInMonth = 0;
   let recordsWithQtyAwb = 0;
   let totalQtyPcs = 0;
@@ -2343,6 +2429,124 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
   console.log(`Total OMSET: ${totalOmset.toLocaleString('id-ID')}`);
   console.log(`OMSET per tanggal:`, omsetByDate);
   
+  // Hitung OMSET BERSIH per tanggal: OMSET - RTS
+  // Akan dihitung setelah RTS dihitung dari data retur
+  
+  // Hitung AWB RTS dari data retur
+  // Data retur ada di window.returDataCache
+  if (window.returDataCache && window.returDataCache.records && Array.isArray(window.returDataCache.records)) {
+    const returRecords = window.returDataCache.records;
+    console.log(`=== AWB RTS Calculation ===`);
+    console.log(`Total retur records: ${returRecords.length}`);
+    console.log(`Selected store: ${selectedStore}`);
+    
+    // Filter retur records berdasarkan toko yang dipilih (kolom B - Nama CS)
+    const storeFilteredReturRecords = returRecords.filter(returRecord => {
+      if (!returRecord.namaCS) {
+        return false;
+      }
+      const returStore = String(returRecord.namaCS).trim();
+      const selectedStoreTrimmed = String(selectedStore).trim();
+      
+      // Case-insensitive comparison
+      return returStore.toLowerCase() === selectedStoreTrimmed.toLowerCase();
+    });
+    
+    console.log(`Retur records dengan toko "${selectedStore}": ${storeFilteredReturRecords.length} dari ${returRecords.length}`);
+    
+    // Hitung AWB RTS per tanggal
+    // Logika sama seperti QTY AWB: hitung jumlah record dengan trackingID !== null per tanggal
+    storeFilteredReturRecords.forEach(returRecord => {
+      if (!returRecord.date) {
+        return;
+      }
+      
+      const returDate = new Date(returRecord.date);
+      if (isNaN(returDate.getTime())) {
+        return;
+      }
+      
+      const returYear = returDate.getFullYear();
+      const returMonth = returDate.getMonth() + 1;
+      const returDay = returDate.getDate();
+      
+      // Filter berdasarkan tahun dan bulan yang dipilih
+      if (returYear !== year || returMonth !== month) {
+        return;
+      }
+      
+      // Hitung AWB RTS: jumlah record yang memiliki trackingID (kolom Q) yang tidak null
+      // SAMA PERSIS seperti QTY AWB: record.trackingID !== null
+      const hasTrackingID = returRecord.trackingID !== null && returRecord.trackingID !== undefined && returRecord.trackingID !== '';
+      
+      if (hasTrackingID) {
+        if (!qtyAwbRtsByDate[returDay]) {
+          qtyAwbRtsByDate[returDay] = 0;
+        }
+        // Setiap record dengan trackingID = 1 AWB RTS (sama seperti QTY AWB)
+        qtyAwbRtsByDate[returDay] += 1;
+      }
+    });
+    
+    console.log(`AWB RTS per tanggal:`, qtyAwbRtsByDate);
+    
+    // Hitung RTS per tanggal
+    // Logika: JUMLAHKAN nilai dari kolom Y (PENYESUAIAN RTS) per tanggal, bukan count record
+    storeFilteredReturRecords.forEach(returRecord => {
+      if (!returRecord.date) {
+        return;
+      }
+      
+      const returDate = new Date(returRecord.date);
+      if (isNaN(returDate.getTime())) {
+        return;
+      }
+      
+      const returYear = returDate.getFullYear();
+      const returMonth = returDate.getMonth() + 1;
+      const returDay = returDate.getDate();
+      
+      // Filter berdasarkan tahun dan bulan yang dipilih
+      if (returYear !== year || returMonth !== month) {
+        return;
+      }
+      
+      // Hitung RTS: JUMLAHKAN nilai penyesuaianRTS per tanggal
+      // Oktober: kolom X (PENYESUAIAN RTS), November: kolom Y (PENYESUAIAN RTS)
+      // Bukan count, tapi sum nilai
+      if (returRecord.penyesuaianRTS !== null && returRecord.penyesuaianRTS !== undefined && returRecord.penyesuaianRTS !== '') {
+        const rtsValue = Number(returRecord.penyesuaianRTS) || 0;
+        if (rtsValue !== 0) {
+          if (!rtsByDate[returDay]) {
+            rtsByDate[returDay] = 0;
+          }
+          // Jumlahkan nilai RTS (bukan count)
+          rtsByDate[returDay] += rtsValue;
+        }
+      }
+    });
+    
+    console.log(`RTS per tanggal:`, rtsByDate);
+    
+    // Hitung OMSET BERSIH per tanggal: OMSET - RTS
+    // OMSET BERSIH = OMSET (kolom 10) - RTS (kolom 5)
+    Object.keys(omsetByDate).forEach(day => {
+      const omset = omsetByDate[day] || 0;
+      const rts = rtsByDate[day] || 0;
+      const omsetBersih = Math.max(0, omset - rts); // Pastikan tidak negatif
+      omsetBersihByDate[day] = omsetBersih;
+    });
+    
+    console.log(`=== OMSET BERSIH Calculation Summary ===`);
+    console.log(`OMSET BERSIH per tanggal:`, omsetBersihByDate);
+  } else {
+    console.log('Data retur belum tersedia untuk menghitung AWB RTS dan RTS');
+    // Jika data retur belum tersedia, OMSET BERSIH = OMSET (karena RTS = 0)
+    Object.keys(omsetByDate).forEach(day => {
+      omsetBersihByDate[day] = omsetByDate[day] || 0;
+    });
+  }
+  
   // Update tabel dengan data QTY AWB
   const tbody = document.getElementById('dailyDataTableBody');
   if (!tbody) {
@@ -2364,6 +2568,9 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
     const day = index + 1;
     const qtyAwb = qtyAwbByDate[day] || 0;
     const qtyPcs = qtyPcsByDate[day] || 0;
+    const qtyAwbRts = qtyAwbRtsByDate[day] || 0; // AWB RTS dari data retur
+    const rts = rtsByDate[day] || 0; // RTS dari data retur (kolom Y PENYESUAIAN RTS)
+    const omsetBersih = omsetBersihByDate[day] || 0; // OMSET BERSIH = OMSET - RTS
     const hargaJual = hargaJualByDate[day] || 0;
     const margin = marginByDate[day] || 0;
     const subOngkir = subOngkirByDate[day] || 0;
@@ -2405,6 +2612,44 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
       }
     } else {
       console.error(`❌ Kolom QTY PCS tidak ditemukan untuk baris ${day}!`);
+    }
+    
+    // Update kolom AWB RTS (kolom ke-4, setelah QTY PCS)
+    // SAMA PERSIS seperti QTY AWB: hitung jumlah record dengan trackingID !== null per tanggal
+    const qtyAwbRtsCell = row.querySelector('td:nth-child(4)');
+    if (qtyAwbRtsCell) {
+      if (qtyAwbRts > 0) {
+        qtyAwbRtsCell.textContent = qtyAwbRts.toLocaleString('id-ID');
+        if (day <= 5) {
+          console.log(`✓ Baris ${day} (tanggal ${day}): AWB RTS = ${qtyAwbRts}`);
+        }
+      } else {
+        qtyAwbRtsCell.textContent = '';
+        if (day <= 5) {
+          console.log(`✗ Baris ${day} (tanggal ${day}): AWB RTS = 0 (kosong)`);
+        }
+      }
+    } else {
+      console.error(`❌ Kolom AWB RTS tidak ditemukan untuk baris ${day}!`);
+    }
+    
+    // Update kolom RTS (kolom ke-5, setelah AWB RTS)
+    // SAMA PERSIS seperti AWB RTS: hitung jumlah record dengan penyesuaianRTS (kolom Y) !== null per tanggal
+    const rtsCell = row.querySelector('td:nth-child(5)');
+    if (rtsCell) {
+      if (rts > 0) {
+        rtsCell.textContent = rts.toLocaleString('id-ID');
+        if (day <= 5) {
+          console.log(`✓ Baris ${day} (tanggal ${day}): RTS = ${rts}`);
+        }
+      } else {
+        rtsCell.textContent = '';
+        if (day <= 5) {
+          console.log(`✗ Baris ${day} (tanggal ${day}): RTS = 0 (kosong)`);
+        }
+      }
+    } else {
+      console.error(`❌ Kolom RTS tidak ditemukan untuk baris ${day}!`);
     }
     
     // Update kolom HARGA JUAL (kolom ke-7, setelah RTS (%))
@@ -2470,7 +2715,6 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
       console.error(`❌ Kolom MARGIN tidak ditemukan untuk baris ${day}!`);
     }
     
-    // Update kolom OMSET (kolom ke-10, setelah MARGIN)
     // OMSET = HARGA JUAL - SUB ONGKIR (sudah di-aggregate per tanggal)
     const omsetCell = row.querySelector('td:nth-child(10)');
     if (omsetCell) {
@@ -2488,6 +2732,25 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
       }
     } else {
       console.error(`❌ Kolom OMSET tidak ditemukan untuk baris ${day}!`);
+    }
+    
+    // Update kolom OMSET BERSIH (kolom ke-11, setelah OMSET)
+    // OMSET BERSIH = OMSET (kolom 10) - RTS (kolom 5)
+    const omsetBersihCell = row.querySelector('td:nth-child(11)');
+    if (omsetBersihCell) {
+      if (omsetBersih !== 0) {
+        omsetBersihCell.textContent = omsetBersih.toLocaleString('id-ID');
+        if (day <= 5) {
+          console.log(`✓ Baris ${day} (tanggal ${day}): OMSET BERSIH = ${omsetBersih.toLocaleString('id-ID')} (OMSET: ${omset.toLocaleString('id-ID')} - RTS: ${rts.toLocaleString('id-ID')})`);
+        }
+      } else {
+        omsetBersihCell.textContent = '';
+        if (day <= 5) {
+          console.log(`✗ Baris ${day} (tanggal ${day}): OMSET BERSIH = 0 (kosong)`);
+        }
+      }
+    } else {
+      console.error(`❌ Kolom OMSET BERSIH tidak ditemukan untuk baris ${day}!`);
     }
   });
   
