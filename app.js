@@ -853,6 +853,32 @@ const transformGoogleSheetsData = (rows) => {
     const resi = row['RESI'] || row['Resi'] || row['resi'] || '';
     const hasResi = resi && String(resi).trim().length > 0;
     
+    // Ambil kolom "Nama CS" untuk toko/store (kolom C)
+    // Kolom C berisi nama toko dengan suffix _T, _S, _L (contoh: HARMONIHERBAL_T, HEALNATURE_T)
+    let storeName = '';
+    
+    // Prioritas 1: Cari header "Nama CS" atau variasi namanya
+    const namaCSHeaders = ['Nama CS', 'Nama cs', 'nama cs', 'NAMA CS', 'NamaCS', 'Nama_Cs'];
+    for (const headerName of namaCSHeaders) {
+      if (row[headerName] !== null && row[headerName] !== undefined && row[headerName] !== '') {
+        storeName = String(row[headerName]).trim();
+        break;
+      }
+    }
+    
+    // Prioritas 2: Fallback ke index 2 (kolom C) jika header tidak ditemukan
+    if (!storeName && headers.length > 2) {
+      const columnCHeader = headers[2];
+      storeName = row[columnCHeader] ? String(row[columnCHeader]).trim() : '';
+    }
+    
+    // Debug untuk beberapa baris pertama
+    if (records.length < 3) {
+      console.log('=== STORE DEBUG ===');
+      console.log('Store name extracted from Nama CS:', storeName);
+      console.log('All headers:', headers.slice(0, 10));
+    }
+
     records.push({
       orderDate: date.toISOString(),
       orderTs: date.getTime(),
@@ -864,6 +890,7 @@ const transformGoogleSheetsData = (rows) => {
       omset, // Omset untuk card 1
       hargaJual: totalHargaJual, // Harga Jual dari kolom AA
       resi: hasResi ? resi : null, // RESI dari kolom G
+      store: storeName, // Kolom C untuk toko/store
       transactionType: cleanText(row['Jenis Transaksi']),
       leadsType: cleanText(row['Jenis Leads']),
       doType: cleanText(row['Jenis DOA']),
@@ -1093,8 +1120,7 @@ let chartColors = colorPalettes.light[4];
 
 const charts = {};
 let trendLineMode = 'revenue';
-let indonesiaMap = null; // Variabel untuk menyimpan instance peta
-const kabupatenCoordinatesCache = {}; // Cache untuk koordinat kabupaten
+// Tabel data harian - tidak perlu variabel global
 
 const toDateInput = (value) => value.toISOString().slice(0, 10);
 
@@ -1458,167 +1484,364 @@ const aggregateHargaJualByWeek = (records) => {
   return { labels, datasets, total };
 };
 
-// ===== FUNGSI UNTUK GEOCODING KABUPATEN =====
-// Menggunakan Nominatim (OpenStreetMap) untuk mendapatkan koordinat
-const geocodeKabupaten = async (kabupatenName) => {
-  if (!kabupatenName || kabupatenName.trim() === '') {
-    return null;
+// ===== FUNGSI UNTUK MEMBUAT TABEL DATA HARIAN =====
+// Membuat 30 baris data dengan tanggal 1-30 sesuai bulan yang dipilih
+const initDailyDataTable = (year, month) => {
+  const tbody = document.getElementById('dailyDataTableBody');
+  if (!tbody) {
+    console.warn('Element dailyDataTableBody tidak ditemukan');
+    return;
   }
 
-  // Cek cache dulu
-  const cacheKey = kabupatenName.trim().toLowerCase();
-  if (kabupatenCoordinatesCache[cacheKey]) {
-    return kabupatenCoordinatesCache[cacheKey];
+  // Kosongkan tbody
+  tbody.innerHTML = '';
+
+  // Tentukan jumlah hari dalam bulan (otomatis sesuai bulan yang dipilih)
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 
+                      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+
+  // Update header nama toko (mengikuti toko yang dipilih)
+  const storeNameHeader = document.getElementById('storeNameHeader');
+  if (storeNameHeader) {
+    // Ambil nama toko yang dipilih dari state atau default "NAMA TOKO"
+    const selectedStore = window.selectedStoreName || 'NAMA TOKO';
+    storeNameHeader.textContent = `${selectedStore} - ${monthNames[month - 1]} ${year}`;
   }
 
-  try {
-    // Query ke Nominatim dengan fokus ke Indonesia
-    const query = encodeURIComponent(`${kabupatenName}, Indonesia`);
-    const url = `https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1&countrycodes=id`;
+  // Buat baris data sesuai jumlah hari dalam bulan (28, 29, 30, atau 31)
+  for (let day = 1; day <= daysInMonth; day++) {
+    const row = document.createElement('tr');
+    
+    // Tidak ada style khusus untuk baris terakhir
+    const rowStyle = '';
 
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'SalesReportDashboard/1.0'
-      }
-    });
+    // Format tanggal: "1 Nov 2025", "2 Nov 2025", dst (1 baris saja)
+    const dateObj = new Date(year, month - 1, day);
+    const dateStr = `${day} ${monthNames[month - 1].substring(0, 3)} ${year}`;
 
-    if (!response.ok) {
-      console.warn(`Geocoding failed for ${kabupatenName}: ${response.status}`);
-      return null;
+    // Style untuk kolom tanggal (harus terlihat penuh, lebih compact, tanpa border)
+    const dateCellStyle = `padding: 4px 8px; text-align: center; white-space: nowrap; ${rowStyle}`;
+    
+    // Style dasar untuk sel lainnya (lebih compact, tanpa border)
+    const cellStyle = `padding: 4px 8px; text-align: center; white-space: nowrap; ${rowStyle}`;
+
+    // Kolom 1: TANGGAL (sudah terisi, harus terlihat penuh)
+    row.innerHTML = `
+      <td style="${dateCellStyle}">${dateStr}</td>
+      <td style="${cellStyle}"></td>
+      <td style="${cellStyle}"></td>
+      <td style="${cellStyle}"></td>
+      <td style="${cellStyle}"></td>
+      <td style="${cellStyle}"></td>
+      <td style="${cellStyle}"></td>
+      <td style="${cellStyle}"></td>
+      <td style="${cellStyle}"></td>
+      <td style="${cellStyle}"></td>
+      <td style="${cellStyle}"></td>
+      <td style="${cellStyle}"></td>
+      <td style="${cellStyle}"></td>
+      <td style="${cellStyle}"></td>
+      <td style="${cellStyle}"></td>
+      <td style="${cellStyle}"></td>
+      <td style="${cellStyle}"></td>
+      <td style="${cellStyle}"></td>
+    `;
+
+    tbody.appendChild(row);
+  }
+
+  // Update warna tabel sesuai color palette
+  if (typeof applyColorPalette === 'function') {
+    // Tunggu sedikit agar DOM sudah ter-render
+    setTimeout(() => {
+      applyColorPalette();
+    }, 100);
+  }
+
+  console.log(`Tabel data harian berhasil dibuat untuk ${monthNames[month - 1]} ${year} (${daysInMonth} baris)`);
+};
+
+// ===== FUNGSI UNTUK EXTRACT UNIQUE TOKO DARI DATA =====
+// Mengambil unique toko dari kolom C warehouse penjualan berdasarkan suffix filter
+const getAvailableStores = (marketplaceFilter) => {
+  if (!window.records || !Array.isArray(window.records) || window.records.length === 0) {
+    console.warn('Data records belum tersedia');
+    return [];
+  }
+
+  // Tentukan suffix berdasarkan marketplace
+  let suffix = '';
+  if (marketplaceFilter && marketplaceFilter.toUpperCase().includes('TIKTOK')) {
+    suffix = '_T';
+  } else if (marketplaceFilter && marketplaceFilter.toUpperCase().includes('SHOPEE')) {
+    suffix = '_S';
+  } else if (marketplaceFilter && marketplaceFilter.toUpperCase().includes('LAZADA')) {
+    suffix = '_L';
+  } else {
+    return []; // Jika bukan TikTok, Shopee, atau Lazada, return empty
+  }
+
+  console.log(`Mencari toko dengan suffix: ${suffix} untuk marketplace: ${marketplaceFilter}`);
+  console.log(`Total records: ${window.records.length}`);
+
+  // Ambil unique toko dari kolom C (field store) yang sesuai suffix
+  const stores = new Set();
+  let recordsWithStore = 0;
+  let recordsWithSuffix = 0;
+  
+  window.records.forEach((record, index) => {
+    // Debug beberapa record pertama
+    if (index < 5) {
+      console.log(`Record ${index}:`, {
+        hasStore: !!record.store,
+        store: record.store,
+        storeType: typeof record.store
+      });
     }
+    
+    if (record.store && typeof record.store === 'string') {
+      recordsWithStore++;
+      const storeName = record.store.trim();
+      if (storeName && storeName.endsWith(suffix)) {
+        recordsWithSuffix++;
+        stores.add(storeName);
+        if (stores.size <= 5) {
+          console.log(`Toko ditemukan: ${storeName}`);
+        }
+      }
+    }
+  });
 
-    const data = await response.json();
+  console.log(`Records dengan field store: ${recordsWithStore}`);
+  console.log(`Records dengan suffix ${suffix}: ${recordsWithSuffix}`);
+  console.log(`Total unique stores: ${stores.size}`);
 
-    if (data && data.length > 0) {
-      const result = {
-        lat: parseFloat(data[0].lat),
-        lon: parseFloat(data[0].lon),
-        displayName: data[0].display_name
+  const result = Array.from(stores).sort();
+  console.log(`Daftar toko yang ditemukan:`, result);
+  
+  return result;
+};
+
+// ===== FUNGSI UNTUK UPDATE HEADER NAMA TOKO =====
+const updateStoreNameHeader = (storeName, year, month) => {
+  // Simpan nama toko yang dipilih ke global state
+  window.selectedStoreName = storeName || 'NAMA TOKO';
+  
+  // Update header tabel
+  const storeNameHeader = document.getElementById('storeNameHeader');
+  if (storeNameHeader) {
+    const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 
+                        'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    storeNameHeader.textContent = `${window.selectedStoreName} - ${monthNames[month - 1]} ${year}`;
+  }
+  
+  // Update tabel jika sudah ada
+  if (year && month) {
+    initDailyDataTable(year, month);
+  }
+};
+
+// ===== FUNGSI UNTUK MENAMPILKAN MODAL PILIHAN TOKO =====
+const showStoreSelectionModal = (availableStores) => {
+  // Hapus modal lama jika ada
+  const existingModal = document.getElementById('storeSelectionModal');
+  if (existingModal) {
+    existingModal.remove();
+  }
+
+  // Ambil warna palette aktif
+  const primaryColor = chartColors && chartColors.length > 0 ? chartColors[0] : '#BF1A1A';
+  
+  // Helper function untuk convert hex to rgb
+  const hexToRgb = (hex) => {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return { r, g, b };
+  };
+  
+  // Helper function untuk membuat warna lebih gelap
+  const darkenColor = (hex, amount = 20) => {
+    const rgb = hexToRgb(hex);
+    const r = Math.max(0, rgb.r - amount);
+    const g = Math.max(0, rgb.g - amount);
+    const b = Math.max(0, rgb.b - amount);
+    return `rgb(${r}, ${g}, ${b})`;
+  };
+
+  // Buat modal
+  const modal = document.createElement('div');
+  modal.id = 'storeSelectionModal';
+  modal.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+  `;
+
+  const modalContent = document.createElement('div');
+  modalContent.style.cssText = `
+    background: white;
+    border-radius: 32px;
+    padding: 24px;
+    padding-right: 16px;
+    max-width: 400px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    position: relative;
+  `;
+  
+  // Style scrollbar agar tidak memotong sudut
+  const styleId = 'storeModalScrollbarStyle';
+  if (!document.getElementById(styleId)) {
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = `
+      #storeSelectionModal > div::-webkit-scrollbar {
+        width: 8px;
+      }
+      #storeSelectionModal > div::-webkit-scrollbar-track {
+        background: transparent;
+        margin: 8px 0;
+      }
+      #storeSelectionModal > div::-webkit-scrollbar-thumb {
+        background: #ccc;
+        border-radius: 4px;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  const title = document.createElement('h3');
+  title.textContent = 'Pilih Toko';
+  title.style.cssText = `margin: 0 0 16px 0; font-size: 1.25rem; font-weight: 600; color: ${primaryColor};`;
+
+  const storeList = document.createElement('div');
+  storeList.style.cssText = 'display: flex; flex-direction: column; gap: 8px;';
+
+  if (availableStores.length === 0) {
+    const noStoreMsg = document.createElement('p');
+    noStoreMsg.textContent = 'Tidak ada toko tersedia';
+    noStoreMsg.style.cssText = 'color: #999; text-align: center; padding: 20px;';
+    storeList.appendChild(noStoreMsg);
+  } else {
+    availableStores.forEach(store => {
+      const storeButton = document.createElement('button');
+      storeButton.textContent = store;
+      
+      // Helper untuk convert hex to rgba
+      const hexToRgba = (hex, alpha) => {
+        const r = parseInt(hex.slice(1, 3), 16);
+        const g = parseInt(hex.slice(3, 5), 16);
+        const b = parseInt(hex.slice(5, 7), 16);
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
       };
+      
+      // Style default dengan warna palette dan bayangan 3D
+      const shadowColor = hexToRgba(primaryColor, 0.3);
+      storeButton.style.cssText = `
+        padding: 12px 16px;
+        border: none;
+        border-radius: 8px;
+        background: ${primaryColor};
+        cursor: pointer;
+        text-align: left;
+        transition: all 0.2s ease;
+        font-size: 0.95rem;
+        color: #fff;
+        font-weight: 500;
+        box-shadow: 0 4px 12px ${shadowColor}, 0 2px 4px ${hexToRgba(primaryColor, 0.2)};
+      `;
+      
+      storeButton.addEventListener('mouseenter', () => {
+        storeButton.style.backgroundColor = darkenColor(primaryColor);
+        storeButton.style.boxShadow = `0 6px 16px ${shadowColor}, 0 3px 6px ${hexToRgba(primaryColor, 0.3)}`;
+        storeButton.style.transform = 'translateY(-2px)';
+      });
+      
+      storeButton.addEventListener('mouseleave', () => {
+        storeButton.style.backgroundColor = primaryColor;
+        storeButton.style.boxShadow = `0 4px 12px ${shadowColor}, 0 2px 4px ${hexToRgba(primaryColor, 0.2)}`;
+        storeButton.style.transform = 'translateY(0)';
+      });
 
-      // Simpan ke cache
-      kabupatenCoordinatesCache[cacheKey] = result;
+      storeButton.addEventListener('click', () => {
+        const monthSelect = document.getElementById('monthSelect');
+        if (monthSelect && monthSelect.value) {
+          const selectedValue = monthSelect.value;
+          const [year, month] = selectedValue.split('-').map(Number);
+          if (year && month) {
+            updateStoreNameHeader(store, year, month);
+          }
+        } else {
+          const now = new Date();
+          updateStoreNameHeader(store, now.getFullYear(), now.getMonth() + 1);
+        }
+        modal.remove();
+      });
 
-      // Rate limiting: tunggu 1 detik sebelum request berikutnya
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      return result;
-    }
-
-    return null;
-  } catch (error) {
-    console.warn(`Error geocoding ${kabupatenName}:`, error);
-    return null;
-  }
-};
-
-// ===== FUNGSI UNTUK INISIALISASI PETA INDONESIA =====
-const initIndonesiaMap = () => {
-  const mapContainer = document.getElementById('indonesiaMap');
-  if (!mapContainer) {
-    console.warn('Element indonesiaMap tidak ditemukan');
-    return;
-  }
-
-  // Inisialisasi peta dengan center di Indonesia
-  indonesiaMap = L.map('indonesiaMap').setView([-2.5, 118.0], 5);
-
-  // Tambahkan tile layer (peta dasar)
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap contributors',
-    maxZoom: 19,
-  }).addTo(indonesiaMap);
-
-  console.log('Peta Indonesia berhasil diinisialisasi');
-};
-
-// ===== FUNGSI UNTUK UPDATE PETA DENGAN MARKER =====
-const updateIndonesiaMap = async (filteredRecords) => {
-  if (!indonesiaMap) {
-    initIndonesiaMap();
-  }
-
-  if (!indonesiaMap) {
-    console.warn('Peta belum diinisialisasi');
-    return;
-  }
-
-  // Hapus semua marker yang ada (CircleMarker dan Marker)
-  const markersToRemove = [];
-  indonesiaMap.eachLayer((layer) => {
-    if (layer instanceof L.Marker || layer instanceof L.CircleMarker) {
-      markersToRemove.push(layer);
-    }
-  });
-  markersToRemove.forEach(marker => indonesiaMap.removeLayer(marker));
-
-  if (!filteredRecords || filteredRecords.length === 0) {
-    console.log('Tidak ada data untuk ditampilkan di peta');
-    return;
-  }
-
-  // Kumpulkan semua kabupaten unik dari data yang difilter
-  const kabupatenSet = new Set();
-  filteredRecords.forEach(record => {
-    if (record.kabupaten && record.kabupaten.trim() !== '' && record.kabupaten !== 'Tidak diketahui') {
-      kabupatenSet.add(record.kabupaten.trim());
-    }
-  });
-
-  console.log(`Menampilkan ${kabupatenSet.size} kabupaten di peta`);
-
-  // Geocode dan tambahkan marker untuk setiap kabupaten
-  let geocodedCount = 0;
-  const maxGeocode = 50; // Limit untuk menghindari terlalu banyak request
-
-  for (const kabupaten of Array.from(kabupatenSet).slice(0, maxGeocode)) {
-    try {
-      const coords = await geocodeKabupaten(kabupaten);
-
-      if (coords) {
-        // Hitung jumlah order untuk kabupaten ini
-        const orderCount = filteredRecords.filter(r =>
-          r.kabupaten && r.kabupaten.trim() === kabupaten
-        ).length;
-
-        // Buat marker merah
-        const marker = L.circleMarker([coords.lat, coords.lon], {
-          radius: Math.min(8 + Math.log(orderCount + 1) * 2, 15),
-          fillColor: '#ff0000',
-          color: '#cc0000',
-          weight: 2,
-          opacity: 1,
-          fillOpacity: 0.7
-        }).addTo(indonesiaMap);
-
-        // Tambahkan popup dengan informasi
-        marker.bindPopup(`
-          <strong>${kabupaten}</strong><br>
-          Jumlah Order: ${orderCount}
-        `);
-
-        geocodedCount++;
-      }
-    } catch (error) {
-      console.warn(`Error menambahkan marker untuk ${kabupaten}:`, error);
-    }
-  }
-
-  console.log(`Berhasil menambahkan ${geocodedCount} marker di peta`);
-
-  // Fit bounds jika ada marker
-  if (geocodedCount > 0) {
-    const group = new L.featureGroup();
-    indonesiaMap.eachLayer((layer) => {
-      if (layer instanceof L.CircleMarker) {
-        group.addLayer(layer);
-      }
+      storeList.appendChild(storeButton);
     });
-
-    if (group.getLayers().length > 0) {
-      indonesiaMap.fitBounds(group.getBounds().pad(0.1));
-    }
   }
+
+  const closeButton = document.createElement('button');
+  closeButton.textContent = 'Tutup';
+  closeButton.style.cssText = `
+    margin-top: 16px;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    background-color: ${primaryColor};
+    color: white;
+    cursor: pointer;
+    width: 100%;
+    font-weight: 600;
+    transition: all 0.2s ease;
+  `;
+  closeButton.addEventListener('mouseenter', () => {
+    closeButton.style.backgroundColor = darkenColor(primaryColor);
+  });
+  closeButton.addEventListener('mouseleave', () => {
+    closeButton.style.backgroundColor = primaryColor;
+  });
+  closeButton.addEventListener('click', () => {
+    modal.remove();
+  });
+
+  modalContent.appendChild(title);
+  modalContent.appendChild(storeList);
+  modalContent.appendChild(closeButton);
+  modal.appendChild(modalContent);
+
+  // Close modal saat klik di luar
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      modal.remove();
+    }
+  });
+
+  document.body.appendChild(modal);
+};
+
+// ===== FUNGSI UNTUK UPDATE TABEL DATA HARIAN =====
+// Fungsi ini akan dipanggil nanti untuk mengisi data ke tabel
+const updateDailyDataTable = (filteredRecords, year, month) => {
+  // Untuk sementara, hanya inisialisasi tabel dengan tanggal
+  // Logika perhitungan akan ditambahkan nanti
+  initDailyDataTable(year, month);
+  
+  // TODO: Nanti akan diisi dengan logika perhitungan untuk setiap kolom
+  // berdasarkan filteredRecords
 };
 
 const aggregateVariance = (data) => {
@@ -1804,6 +2027,9 @@ const initFilters = () => {
       if (selectedKey) {
         const selectedMonth = availableMonths.find(m => m.key === selectedKey);
         if (selectedMonth) {
+          // Inisialisasi tabel data harian untuk bulan yang dipilih
+          initDailyDataTable(selectedMonth.year, selectedMonth.month);
+          
           // Set start date ke tanggal 1 bulan tersebut (00:00:00)
           const startDate = new Date(selectedMonth.year, selectedMonth.month, 1);
           startDate.setHours(0, 0, 0, 0);
@@ -1842,6 +2068,76 @@ const initFilters = () => {
 
   elements.revenueType.addEventListener('change', () => {
     filters.revenueType = elements.revenueType.value;
+    
+    // Update status button "Pilih Toko" berdasarkan marketplace
+    const selectStoreBtn = document.getElementById('selectStoreBtn');
+    const selectStoreTooltip = document.getElementById('selectStoreTooltip');
+    if (selectStoreBtn) {
+      const marketplaceValue = elements.revenueType.value || 'All';
+      
+      // Hapus semua event listener tooltip yang ada (jika ada)
+      if (selectStoreBtn._tooltipEnterHandler) {
+        selectStoreBtn.removeEventListener('mouseenter', selectStoreBtn._tooltipEnterHandler);
+        selectStoreBtn._tooltipEnterHandler = null;
+      }
+      if (selectStoreBtn._tooltipLeaveHandler) {
+        selectStoreBtn.removeEventListener('mouseleave', selectStoreBtn._tooltipLeaveHandler);
+        selectStoreBtn._tooltipLeaveHandler = null;
+      }
+      
+      if (marketplaceValue === 'All' || marketplaceValue === '') {
+        // Disable button jika marketplace = All
+        selectStoreBtn.disabled = true;
+        selectStoreBtn.style.opacity = '0.5';
+        selectStoreBtn.style.cursor = 'not-allowed';
+        
+        // Setup tooltip untuk button disabled (hover aktif)
+        if (selectStoreTooltip) {
+          const tooltipEnterHandler = () => {
+            selectStoreTooltip.style.display = 'block';
+            setTimeout(() => {
+              selectStoreTooltip.style.opacity = '1';
+            }, 10);
+          };
+          const tooltipLeaveHandler = () => {
+            selectStoreTooltip.style.opacity = '0';
+            setTimeout(() => {
+              selectStoreTooltip.style.display = 'none';
+            }, 200);
+          };
+          
+          selectStoreBtn.addEventListener('mouseenter', tooltipEnterHandler);
+          selectStoreBtn.addEventListener('mouseleave', tooltipLeaveHandler);
+          
+          // Simpan reference untuk bisa dihapus nanti
+          selectStoreBtn._tooltipEnterHandler = tooltipEnterHandler;
+          selectStoreBtn._tooltipLeaveHandler = tooltipLeaveHandler;
+        }
+        
+        // Reset toko yang dipilih
+        window.selectedStoreName = 'NAMA TOKO';
+        const monthSelect = document.getElementById('monthSelect');
+        if (monthSelect && monthSelect.value) {
+          const selectedValue = monthSelect.value;
+          const [year, month] = selectedValue.split('-').map(Number);
+          if (year && month) {
+            updateStoreNameHeader('NAMA TOKO', year, month);
+          }
+        }
+      } else {
+        // Enable button jika marketplace bukan All
+        selectStoreBtn.disabled = false;
+        selectStoreBtn.style.opacity = '1';
+        selectStoreBtn.style.cursor = 'pointer';
+        
+        // Sembunyikan tooltip dan pastikan tidak muncul saat hover (hover non aktif)
+        if (selectStoreTooltip) {
+          selectStoreTooltip.style.display = 'none';
+          selectStoreTooltip.style.opacity = '0';
+        }
+      }
+    }
+    
     updateDashboard();
   });
 
@@ -2918,6 +3214,32 @@ const applyColorPalette = () => {
     return { r, g, b };
   };
 
+  // Update warna tabel data harian berdasarkan palette
+  const storeNameHeader = document.getElementById('storeNameHeader');
+  if (storeNameHeader && chartColors && chartColors.length > 0) {
+    const headerRow = storeNameHeader.closest('th');
+    if (headerRow) {
+      // Header "NAMA TOKO" menggunakan warna pertama dengan opacity lebih rendah (light pink effect)
+      const primaryColor = chartColors[0];
+      const hexToRgba = (hex, alpha) => {
+        const r = parseInt(hex.slice(1, 3), 16);
+        const g = parseInt(hex.slice(3, 5), 16);
+        const b = parseInt(hex.slice(5, 7), 16);
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+      };
+      headerRow.style.backgroundColor = hexToRgba(primaryColor, 0.3); // Light pink effect dengan opacity 0.3
+    }
+  }
+
+  // Update warna header kolom (hijau) menggunakan warna pertama dari palette
+  const columnHeaders = document.querySelectorAll('#dailyDataTableContent thead tr:last-child th');
+  if (columnHeaders.length > 0 && chartColors && chartColors.length > 0) {
+    columnHeaders.forEach((header) => {
+      header.style.backgroundColor = chartColors[0]; // Warna pertama dari palette
+      header.style.color = '#ffffff'; // Tetap putih untuk kontras
+    });
+  }
+
   // Update refresh button color berdasarkan palette
   const refreshBtn = document.getElementById('refreshBtn');
   if (refreshBtn && chartColors && chartColors.length > 0) {
@@ -2941,6 +3263,47 @@ const applyColorPalette = () => {
     refreshBtn.style.setProperty('--hover-color', `rgb(${hoverR}, ${hoverG}, ${hoverB})`);
   }
   
+  // Update button "Pilih Toko" color berdasarkan palette
+  const selectStoreBtn = document.getElementById('selectStoreBtn');
+  if (selectStoreBtn && chartColors && chartColors.length > 0) {
+    const primaryColor = chartColors[0];
+    selectStoreBtn.style.backgroundColor = primaryColor;
+    selectStoreBtn.style.color = '#fff';
+    
+    // Tambahkan box-shadow 3D dengan warna palette
+    const shadowColor = hexToRgba(primaryColor, 0.3);
+    selectStoreBtn.style.setProperty('box-shadow', `0 4px 12px ${shadowColor}, 0 2px 4px ${hexToRgba(primaryColor, 0.2)}`, 'important');
+    
+    // Update hover effect dengan warna yang sedikit lebih gelap
+    const rgb = hexToRgb(primaryColor);
+    const hoverR = Math.max(0, rgb.r - 20);
+    const hoverG = Math.max(0, rgb.g - 20);
+    const hoverB = Math.max(0, rgb.b - 20);
+    selectStoreBtn.style.setProperty('--hover-color', `rgb(${hoverR}, ${hoverG}, ${hoverB})`);
+    
+    // Hapus event listener lama jika ada, lalu tambahkan yang baru
+    const oldHoverHandler = selectStoreBtn._hoverHandler;
+    if (oldHoverHandler) {
+      selectStoreBtn.removeEventListener('mouseenter', oldHoverHandler.enter);
+      selectStoreBtn.removeEventListener('mouseleave', oldHoverHandler.leave);
+    }
+    
+    // Buat handler baru
+    const hoverEnter = function() {
+      this.style.backgroundColor = `rgb(${hoverR}, ${hoverG}, ${hoverB})`;
+    };
+    const hoverLeave = function() {
+      this.style.backgroundColor = primaryColor;
+    };
+    
+    // Simpan reference untuk bisa dihapus nanti
+    selectStoreBtn._hoverHandler = { enter: hoverEnter, leave: hoverLeave };
+    
+    // Tambahkan hover effect via JavaScript
+    selectStoreBtn.addEventListener('mouseenter', hoverEnter);
+    selectStoreBtn.addEventListener('mouseleave', hoverLeave);
+  }
+
   // Update logout button color berdasarkan palette (gunakan warna kedua atau pertama)
   const logoutBtn = document.getElementById('logoutBtn');
   if (logoutBtn && chartColors && chartColors.length > 0) {
@@ -3690,10 +4053,14 @@ const updateDashboard = () => {
 
     });
 
-  // Update peta Indonesia dengan data yang difilter
-  updateIndonesiaMap(filtered).catch(error => {
-    console.error('Error updating Indonesia map:', error);
-  });
+  // Update tabel data harian dengan data yang difilter
+  if (monthSelect && monthSelect.value) {
+    const selectedValue = monthSelect.value;
+    const [year, month] = selectedValue.split('-').map(Number);
+    if (year && month) {
+      updateDailyDataTable(filtered, year, month);
+    }
+  }
 
   const variance = aggregateVariance(filtered);
   if (charts.variance) {
@@ -3838,6 +4205,15 @@ const bootstrap = async () => {
       dataLoaded = true;
     }
 
+    // Assign records ke window.records agar bisa diakses oleh fungsi getAvailableStores
+    window.records = records;
+    console.log('window.records assigned:', window.records ? window.records.length : 0, 'records');
+    if (window.records && window.records.length > 0) {
+      console.log('Sample record:', window.records[0]);
+      console.log('Sample record has store field:', !!window.records[0].store);
+      console.log('Sample record store value:', window.records[0].store);
+    }
+
     if (!dataLoaded) {
       throw new Error('Tidak ada sumber data yang tersedia. Pastikan Google Sheets dapat diakses.');
     }
@@ -3884,20 +4260,83 @@ const bootstrap = async () => {
 
     initFilters();
     initCharts();
-    // Inisialisasi peta Indonesia (tunggu sedikit agar Leaflet sudah dimuat)
-    setTimeout(() => {
-      if (typeof L !== 'undefined') {
-        initIndonesiaMap();
-      } else {
-        console.warn('Leaflet belum dimuat');
+    // Inisialisasi tabel data harian
+    const monthSelect = document.getElementById('monthSelect');
+    if (monthSelect && monthSelect.value) {
+      const selectedValue = monthSelect.value;
+      const [year, month] = selectedValue.split('-').map(Number);
+      if (year && month) {
+        initDailyDataTable(year, month);
       }
-    }, 100);
+    }
     // Apply display mode styling (TIDAK update chart, hanya styling DOM)
     applyDisplayMode();
     // Apply color palette (termasuk update error message jika ada)
     applyColorPalette();
     // Update dashboard dengan data (ini yang akan update chart dengan data)
     updateDashboard();
+
+    // Setup button "Pilih Toko"
+    const selectStoreBtn = document.getElementById('selectStoreBtn');
+    const selectStoreTooltip = document.getElementById('selectStoreTooltip');
+    if (selectStoreBtn) {
+      // Set initial state berdasarkan marketplace
+      const initialMarketplace = elements.revenueType ? elements.revenueType.value : 'All';
+      if (initialMarketplace === 'All' || initialMarketplace === '') {
+        selectStoreBtn.disabled = true;
+        selectStoreBtn.style.opacity = '0.5';
+        selectStoreBtn.style.cursor = 'not-allowed';
+        
+        // Setup tooltip untuk button disabled (hover aktif)
+        if (selectStoreTooltip) {
+          const tooltipEnterHandler = () => {
+            selectStoreTooltip.style.display = 'block';
+            setTimeout(() => {
+              selectStoreTooltip.style.opacity = '1';
+            }, 10);
+          };
+          const tooltipLeaveHandler = () => {
+            selectStoreTooltip.style.opacity = '0';
+            setTimeout(() => {
+              selectStoreTooltip.style.display = 'none';
+            }, 200);
+          };
+          
+          selectStoreBtn.addEventListener('mouseenter', tooltipEnterHandler);
+          selectStoreBtn.addEventListener('mouseleave', tooltipLeaveHandler);
+          
+          // Simpan reference untuk bisa dihapus nanti
+          selectStoreBtn._tooltipEnterHandler = tooltipEnterHandler;
+          selectStoreBtn._tooltipLeaveHandler = tooltipLeaveHandler;
+        }
+      } else {
+        // Jika button enabled, pastikan tooltip tidak muncul
+        if (selectStoreTooltip) {
+          selectStoreTooltip.style.display = 'none';
+          selectStoreTooltip.style.opacity = '0';
+        }
+      }
+
+      selectStoreBtn.addEventListener('click', () => {
+        // Ambil marketplace yang dipilih
+        const marketplaceValue = elements.revenueType ? elements.revenueType.value : 'All';
+        
+        if (marketplaceValue === 'All' || marketplaceValue === '') {
+          return; // Jangan tampilkan modal jika All
+        }
+
+        // Ambil daftar toko yang tersedia berdasarkan marketplace
+        const availableStores = getAvailableStores(marketplaceValue);
+        
+        if (availableStores.length === 0) {
+          alert('Tidak ada toko tersedia untuk marketplace yang dipilih');
+          return;
+        }
+
+        // Tampilkan modal pilihan toko
+        showStoreSelectionModal(availableStores);
+      });
+    }
 
     // Setup refresh button
     const refreshBtn = document.getElementById('refreshBtn');
