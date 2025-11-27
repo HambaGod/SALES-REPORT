@@ -578,7 +578,7 @@ const fetchBudgetIklanData = async (monthKey = null, marketplaceFilter = 'All') 
 
     if (!rows || rows.length === 0) {
       console.log('Tidak ada data budget iklan');
-      return { total: 0, byMarketplace: {} };
+      return { total: 0, byMarketplace: {}, byDateAndProduk: {} };
     }
 
     // Helper function untuk parse tanggal
@@ -617,12 +617,14 @@ const fetchBudgetIklanData = async (monthKey = null, marketplaceFilter = 'All') 
     // Kolom A = TANGGAL, Kolom B = MARKETPLACE, Kolom C = PRODUK, Kolom D = TOTAL BIAYA IKLAN
     const tanggalCol = headers[0]; // Kolom A
     const marketplaceCol = headers[1]; // Kolom B
+    const produkCol = headers[2]; // Kolom C - PRODUK (nama toko)
     const totalBiayaCol = headers[3]; // Kolom D
 
-    console.log(`Using columns by index: Tanggal="${tanggalCol}", Marketplace="${marketplaceCol}", Total="${totalBiayaCol}"`);
+    console.log(`Using columns by index: Tanggal="${tanggalCol}", Marketplace="${marketplaceCol}", Produk="${produkCol}", Total="${totalBiayaCol}"`);
 
-    // Aggregate data per marketplace
+    // Aggregate data per marketplace dan per tanggal per produk
     const byMarketplace = {};
+    const byDateAndProduk = {}; // Object dengan key: "day-produk", value: total budget iklan
     let totalBudget = 0;
     let processedRows = 0;
     let skippedRows = 0;
@@ -630,11 +632,12 @@ const fetchBudgetIklanData = async (monthKey = null, marketplaceFilter = 'All') 
     rows.forEach((row, index) => {
       const tanggalStr = row[tanggalCol];
       const marketplace = row[marketplaceCol];
+      const produk = row[produkCol]; // Kolom C - PRODUK
       const totalBiaya = toNumber(row[totalBiayaCol]);
 
       // Debug log untuk 5 baris pertama
       if (index < 5) {
-        console.log(`Row ${index + 1}: Tanggal="${tanggalStr}", Marketplace="${marketplace}", Total=${totalBiaya}`);
+        console.log(`Row ${index + 1}: Tanggal="${tanggalStr}", Marketplace="${marketplace}", Produk="${produk}", Total=${totalBiaya}`);
       }
 
       // Skip jika tidak ada tanggal atau marketplace
@@ -671,11 +674,24 @@ const fetchBudgetIklanData = async (monthKey = null, marketplaceFilter = 'All') 
         return;
       }
 
-      // Aggregate
+      // Aggregate per marketplace
       if (!byMarketplace[normalizedMarketplace]) {
         byMarketplace[normalizedMarketplace] = 0;
       }
       byMarketplace[normalizedMarketplace] += totalBiaya;
+      
+      // Aggregate per tanggal dan produk (untuk tabel harian)
+      if (produk) {
+        const day = date.getDate();
+        const produkKey = produk.trim(); // Simpan produk asli (case-sensitive untuk matching dengan toko)
+        const dateProdukKey = `${day}-${produkKey}`;
+        
+        if (!byDateAndProduk[dateProdukKey]) {
+          byDateAndProduk[dateProdukKey] = 0;
+        }
+        byDateAndProduk[dateProdukKey] += totalBiaya;
+      }
+      
       totalBudget += totalBiaya;
       processedRows++;
 
@@ -684,12 +700,13 @@ const fetchBudgetIklanData = async (monthKey = null, marketplaceFilter = 'All') 
 
     console.log(`Budget Iklan Summary: ${processedRows} rows processed, ${skippedRows} rows skipped`);
     console.log('Budget Iklan by Marketplace:', byMarketplace);
+    console.log('Budget Iklan by Date and Produk:', byDateAndProduk);
     console.log('Total Budget Iklan:', totalBudget.toLocaleString('id-ID'));
 
-    return { total: totalBudget, byMarketplace };
+    return { total: totalBudget, byMarketplace, byDateAndProduk };
   } catch (error) {
     console.error('Error fetching Budget Iklan data:', error);
-    return { total: 0, byMarketplace: {} };
+    return { total: 0, byMarketplace: {}, byDateAndProduk: {} };
   }
 };
 
@@ -1631,6 +1648,44 @@ const initDailyDataTable = (year, month) => {
 
   // Header nama toko sudah dihapus, tidak perlu update lagi
 
+  // Buat baris TOTAL di awal (sebelum baris tanggal)
+  const totalRow = document.createElement('tr');
+  totalRow.id = 'dailyDataTableTotalRow';
+  totalRow.style.cssText = 'background-color: #f5f5f5; font-weight: 700;';
+  
+  // Style untuk kolom tanggal di baris total (sticky)
+  const totalDateCellStyle = `padding: 6px 8px; text-align: center; white-space: nowrap; position: sticky; left: 0; z-index: 5; background-color: #f5f5f5; border-right: 1px solid #e0e0e0; border-bottom: 2px solid #4caf50; font-weight: 700;`;
+  
+  // Style untuk sel lainnya di baris total
+  const totalCellStyle = `padding: 6px 8px; text-align: center; white-space: nowrap; border-right: 1px solid #e0e0e0; border-bottom: 2px solid #4caf50; font-weight: 700;`;
+  
+  // Style untuk kolom terakhir di baris total
+  const totalLastCellStyle = `padding: 6px 8px; text-align: center; white-space: nowrap; border-bottom: 2px solid #4caf50; font-weight: 700;`;
+  
+  // Baris TOTAL - semua kolom akan diisi nanti oleh updateDailyDataTableData
+  totalRow.innerHTML = `
+    <td style="${totalDateCellStyle}">TOTAL</td>
+    <td style="${totalCellStyle}"></td>
+    <td style="${totalCellStyle}"></td>
+    <td style="${totalCellStyle}"></td>
+    <td style="${totalCellStyle}"></td>
+    <td style="${totalCellStyle}"></td>
+    <td style="${totalCellStyle}"></td>
+    <td style="${totalCellStyle}"></td>
+    <td style="${totalCellStyle}"></td>
+    <td style="${totalCellStyle}"></td>
+    <td style="${totalCellStyle}"></td>
+    <td style="${totalCellStyle}"></td>
+    <td style="${totalCellStyle}"></td>
+    <td style="${totalCellStyle}"></td>
+    <td style="${totalCellStyle}"></td>
+    <td style="${totalCellStyle}"></td>
+    <td style="${totalCellStyle}"></td>
+    <td style="${totalLastCellStyle}"></td>
+  `;
+  
+  tbody.appendChild(totalRow);
+
   // Buat baris data sesuai jumlah hari dalam bulan (28, 29, 30, atau 31)
   for (let day = 1; day <= daysInMonth; day++) {
     const row = document.createElement('tr');
@@ -2432,6 +2487,51 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
   // Hitung OMSET BERSIH per tanggal: OMSET - RTS
   // Akan dihitung setelah RTS dihitung dari data retur
   
+  // Hitung BIAYA IKLAN per tanggal dari data budget iklan
+  // Data budget iklan ada di window.budgetIklanData
+  const biayaIklanByDate = {};
+  if (window.budgetIklanData && window.budgetIklanData.byDateAndProduk) {
+    const budgetByDateAndProduk = window.budgetIklanData.byDateAndProduk;
+    console.log(`=== BIAYA IKLAN Calculation ===`);
+    console.log(`Total budget entries: ${Object.keys(budgetByDateAndProduk).length}`);
+    console.log(`Selected store: ${selectedStore}`);
+    
+    // Iterate melalui semua data budget iklan
+    Object.keys(budgetByDateAndProduk).forEach(key => {
+      // Key format: "day-produk" (contoh: "1-TIKTOK SHOP", "2-SHOPEE STORE")
+      // Split pada "-" pertama saja (jika produk mengandung "-", kita ambil sisanya)
+      const firstDashIndex = key.indexOf('-');
+      if (firstDashIndex === -1) {
+        return; // Skip jika tidak ada "-"
+      }
+      
+      const dayStr = key.substring(0, firstDashIndex);
+      const produk = key.substring(firstDashIndex + 1);
+      const day = parseInt(dayStr);
+      
+      if (isNaN(day)) {
+        return;
+      }
+      
+      // Filter berdasarkan produk (toko) yang dipilih
+      // Case-insensitive comparison untuk lebih fleksibel
+      const produkTrimmed = String(produk).trim();
+      const selectedStoreTrimmed = String(selectedStore).trim();
+      
+      if (produkTrimmed.toLowerCase() === selectedStoreTrimmed.toLowerCase()) {
+        const biayaIklan = budgetByDateAndProduk[key] || 0;
+        if (!biayaIklanByDate[day]) {
+          biayaIklanByDate[day] = 0;
+        }
+        biayaIklanByDate[day] += biayaIklan;
+      }
+    });
+    
+    console.log(`BIAYA IKLAN per tanggal:`, biayaIklanByDate);
+  } else {
+    console.log('Data budget iklan belum tersedia untuk menghitung BIAYA IKLAN');
+  }
+  
   // Hitung AWB RTS dari data retur
   // Data retur ada di window.returDataCache
   if (window.returDataCache && window.returDataCache.records && Array.isArray(window.returDataCache.records)) {
@@ -2547,6 +2647,150 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
     });
   }
   
+  // Hitung PROFIT per tanggal: MARGIN - BIAYA IKLAN - RTS
+  const profitByDate = {};
+  // Gabungkan semua tanggal yang ada (dari margin, biaya iklan, atau rts)
+  const allDays = new Set([
+    ...Object.keys(marginByDate).map(Number),
+    ...Object.keys(biayaIklanByDate).map(Number),
+    ...Object.keys(rtsByDate).map(Number)
+  ]);
+  
+  allDays.forEach(day => {
+    const margin = marginByDate[day] || 0;
+    const biayaIklan = biayaIklanByDate[day] || 0;
+    const rts = rtsByDate[day] || 0;
+    const profit = margin - biayaIklan - rts;
+    profitByDate[day] = profit;
+  });
+  
+  console.log(`=== PROFIT Calculation Summary ===`);
+  console.log(`PROFIT per tanggal (MARGIN - BIAYA IKLAN - RTS):`, profitByDate);
+  
+  // Hitung CPL (Cost Per Lead) per tanggal: BIAYA IKLAN / QTY AWB
+  const cplByDate = {};
+  // Hitung CAC (Customer Acquisition Cost) per tanggal: BIAYA IKLAN / QTY AWB (sama dengan CPL)
+  const cacByDate = {};
+  // Hitung CPP (Cost Per Purchase) per tanggal: BIAYA IKLAN / QTY Pcs
+  const cppByDate = {};
+  // Hitung ROAS (Return on Ad Spend) per tanggal: OMSET / BIAYA IKLAN
+  const roasByDate = {};
+  // Hitung ROI (%) per tanggal: (PROFIT / BIAYA IKLAN) * 100
+  const roiByDate = {};
+  
+  // Gabungkan semua tanggal yang relevan
+  const allDaysForMetrics = new Set([
+    ...Object.keys(qtyAwbByDate).map(Number),
+    ...Object.keys(qtyPcsByDate).map(Number),
+    ...Object.keys(biayaIklanByDate).map(Number),
+    ...Object.keys(omsetByDate).map(Number),
+    ...Object.keys(profitByDate).map(Number)
+  ]);
+  
+  allDaysForMetrics.forEach(day => {
+    const qtyAwb = qtyAwbByDate[day] || 0;
+    const qtyPcs = qtyPcsByDate[day] || 0;
+    const biayaIklan = biayaIklanByDate[day] || 0;
+    const omset = omsetByDate[day] || 0;
+    const profit = profitByDate[day] || 0;
+    
+    // CPL = BIAYA IKLAN / QTY AWB (jika QTY AWB > 0)
+    if (qtyAwb > 0 && biayaIklan > 0) {
+      cplByDate[day] = biayaIklan / qtyAwb;
+    } else {
+      cplByDate[day] = 0;
+    }
+    
+    // CAC = BIAYA IKLAN / QTY AWB (sama dengan CPL)
+    if (qtyAwb > 0 && biayaIklan > 0) {
+      cacByDate[day] = biayaIklan / qtyAwb;
+    } else {
+      cacByDate[day] = 0;
+    }
+    
+    // CPP = BIAYA IKLAN / QTY Pcs (jika QTY Pcs > 0)
+    if (qtyPcs > 0 && biayaIklan > 0) {
+      cppByDate[day] = biayaIklan / qtyPcs;
+    } else {
+      cppByDate[day] = 0;
+    }
+    
+    // ROAS = OMSET / BIAYA IKLAN (jika BIAYA IKLAN > 0)
+    if (biayaIklan > 0 && omset > 0) {
+      roasByDate[day] = omset / biayaIklan;
+    } else {
+      roasByDate[day] = 0;
+    }
+    
+    // ROI = (PROFIT / BIAYA IKLAN) * 100 (jika BIAYA IKLAN > 0)
+    if (biayaIklan > 0) {
+      roiByDate[day] = (profit / biayaIklan) * 100;
+    } else {
+      roiByDate[day] = 0;
+    }
+  });
+  
+  console.log(`=== CPL Calculation Summary ===`);
+  console.log(`CPL per tanggal (BIAYA IKLAN / QTY AWB):`, cplByDate);
+  console.log(`=== CAC Calculation Summary ===`);
+  console.log(`CAC per tanggal (BIAYA IKLAN / QTY AWB):`, cacByDate);
+  console.log(`=== CPP Calculation Summary ===`);
+  console.log(`CPP per tanggal (BIAYA IKLAN / QTY Pcs):`, cppByDate);
+  console.log(`=== ROAS Calculation Summary ===`);
+  console.log(`ROAS per tanggal (OMSET / BIAYA IKLAN):`, roasByDate);
+  console.log(`=== ROI Calculation Summary ===`);
+  console.log(`ROI (%) per tanggal ((PROFIT / BIAYA IKLAN) * 100):`, roiByDate);
+  
+  // Hitung total untuk semua kolom (gunakan nama yang berbeda untuk menghindari konflik)
+  const totalQtyAwbSum = Object.values(qtyAwbByDate).reduce((sum, val) => sum + val, 0);
+  const totalQtyPcsSum = Object.values(qtyPcsByDate).reduce((sum, val) => sum + val, 0);
+  const totalQtyAwbRtsSum = Object.values(qtyAwbRtsByDate).reduce((sum, val) => sum + val, 0);
+  const totalRtsSum = Object.values(rtsByDate).reduce((sum, val) => sum + val, 0);
+  const totalHargaJualSum = Object.values(hargaJualByDate).reduce((sum, val) => sum + val, 0);
+  const totalSubOngkirSum = Object.values(subOngkirByDate).reduce((sum, val) => sum + val, 0);
+  const totalMarginSum = Object.values(marginByDate).reduce((sum, val) => sum + val, 0);
+  const totalOmsetSum = Object.values(omsetByDate).reduce((sum, val) => sum + val, 0);
+  const totalOmsetBersihSum = Object.values(omsetBersihByDate).reduce((sum, val) => sum + val, 0);
+  const totalBiayaIklanSum = Object.values(biayaIklanByDate).reduce((sum, val) => sum + val, 0);
+  const totalProfitSum = Object.values(profitByDate).reduce((sum, val) => sum + val, 0);
+  
+  // Hitung RTS (%) total: (Total RTS / Total HARGA JUAL) * 100
+  const totalRtsPercent = totalHargaJualSum > 0 ? (totalRtsSum / totalHargaJualSum) * 100 : 0;
+  
+  // Hitung CPL total: Total BIAYA IKLAN / Total QTY AWB
+  const totalCpl = totalQtyAwbSum > 0 ? totalBiayaIklanSum / totalQtyAwbSum : 0;
+  
+  // Hitung CAC total: Total BIAYA IKLAN / Total QTY AWB (sama dengan CPL)
+  const totalCac = totalQtyAwbSum > 0 ? totalBiayaIklanSum / totalQtyAwbSum : 0;
+  
+  // Hitung CPP total: Total BIAYA IKLAN / Total QTY Pcs
+  const totalCpp = totalQtyPcsSum > 0 ? totalBiayaIklanSum / totalQtyPcsSum : 0;
+  
+  // Hitung ROAS total: Total OMSET / Total BIAYA IKLAN
+  const totalRoas = totalBiayaIklanSum > 0 ? totalOmsetSum / totalBiayaIklanSum : 0;
+  
+  // Hitung ROI total: (Total PROFIT / Total BIAYA IKLAN) * 100
+  const totalRoi = totalBiayaIklanSum > 0 ? (totalProfitSum / totalBiayaIklanSum) * 100 : 0;
+  
+  console.log(`=== Total Calculation Summary ===`);
+  console.log(`Total QTY AWB: ${totalQtyAwbSum}`);
+  console.log(`Total QTY Pcs: ${totalQtyPcsSum}`);
+  console.log(`Total AWB RTS: ${totalQtyAwbRtsSum}`);
+  console.log(`Total RTS: ${totalRtsSum.toLocaleString('id-ID')}`);
+  console.log(`Total RTS (%): ${totalRtsPercent.toFixed(2)}%`);
+  console.log(`Total HARGA JUAL: ${totalHargaJualSum.toLocaleString('id-ID')}`);
+  console.log(`Total Sub Ongkir: ${totalSubOngkirSum.toLocaleString('id-ID')}`);
+  console.log(`Total MARGIN: ${totalMarginSum.toLocaleString('id-ID')}`);
+  console.log(`Total OMSET: ${totalOmsetSum.toLocaleString('id-ID')}`);
+  console.log(`Total OMSET BERSIH: ${totalOmsetBersihSum.toLocaleString('id-ID')}`);
+  console.log(`Total BIAYA IKLAN: ${totalBiayaIklanSum.toLocaleString('id-ID')}`);
+  console.log(`Total PROFIT: ${totalProfitSum.toLocaleString('id-ID')}`);
+  console.log(`Total CPL: ${totalCpl.toLocaleString('id-ID')}`);
+  console.log(`Total CAC: ${totalCac.toLocaleString('id-ID')}`);
+  console.log(`Total CPP: ${totalCpp.toLocaleString('id-ID')}`);
+  console.log(`Total ROAS: ${totalRoas.toFixed(2)}`);
+  console.log(`Total ROI: ${totalRoi.toFixed(2)}%`);
+  
   // Update tabel dengan data QTY AWB
   const tbody = document.getElementById('dailyDataTableBody');
   if (!tbody) {
@@ -2554,9 +2798,121 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
     return;
   }
   
-  const rows = tbody.querySelectorAll('tr');
+  // Update baris TOTAL terlebih dahulu
+  const totalRow = document.getElementById('dailyDataTableTotalRow');
+  if (totalRow) {
+    // Kolom 1: TANGGAL (TOTAL)
+    const totalDateCell = totalRow.querySelector('td:nth-child(1)');
+    if (totalDateCell) {
+      totalDateCell.textContent = 'TOTAL';
+    }
+    
+    // Kolom 2: Total QTY AWB
+    const totalQtyAwbCell = totalRow.querySelector('td:nth-child(2)');
+    if (totalQtyAwbCell) {
+      totalQtyAwbCell.textContent = totalQtyAwbSum > 0 ? totalQtyAwbSum.toLocaleString('id-ID') : '';
+    }
+    
+    // Kolom 3: Total QTY Pcs
+    const totalQtyPcsCell = totalRow.querySelector('td:nth-child(3)');
+    if (totalQtyPcsCell) {
+      totalQtyPcsCell.textContent = totalQtyPcsSum > 0 ? totalQtyPcsSum.toLocaleString('id-ID') : '';
+    }
+    
+    // Kolom 4: Total AWB RTS
+    const totalQtyAwbRtsCell = totalRow.querySelector('td:nth-child(4)');
+    if (totalQtyAwbRtsCell) {
+      totalQtyAwbRtsCell.textContent = totalQtyAwbRtsSum > 0 ? totalQtyAwbRtsSum.toLocaleString('id-ID') : '';
+    }
+    
+    // Kolom 5: Total RTS
+    const totalRtsCell = totalRow.querySelector('td:nth-child(5)');
+    if (totalRtsCell) {
+      totalRtsCell.textContent = totalRtsSum > 0 ? totalRtsSum.toLocaleString('id-ID') : '';
+    }
+    
+    // Kolom 6: Total RTS (%)
+    const totalRtsPercentCell = totalRow.querySelector('td:nth-child(6)');
+    if (totalRtsPercentCell) {
+      totalRtsPercentCell.textContent = totalRtsPercent > 0 ? totalRtsPercent.toFixed(2) + '%' : '';
+    }
+    
+    // Kolom 7: Total HARGA JUAL
+    const totalHargaJualCell = totalRow.querySelector('td:nth-child(7)');
+    if (totalHargaJualCell) {
+      totalHargaJualCell.textContent = totalHargaJualSum > 0 ? totalHargaJualSum.toLocaleString('id-ID') : '';
+    }
+    
+    // Kolom 8: Total Sub Ongkir
+    const totalSubOngkirCell = totalRow.querySelector('td:nth-child(8)');
+    if (totalSubOngkirCell) {
+      totalSubOngkirCell.textContent = totalSubOngkirSum > 0 ? totalSubOngkirSum.toLocaleString('id-ID') : '';
+    }
+    
+    // Kolom 9: Total MARGIN
+    const totalMarginCell = totalRow.querySelector('td:nth-child(9)');
+    if (totalMarginCell) {
+      totalMarginCell.textContent = totalMarginSum !== 0 ? totalMarginSum.toLocaleString('id-ID') : '';
+    }
+    
+    // Kolom 10: Total OMSET
+    const totalOmsetCell = totalRow.querySelector('td:nth-child(10)');
+    if (totalOmsetCell) {
+      totalOmsetCell.textContent = totalOmsetSum > 0 ? totalOmsetSum.toLocaleString('id-ID') : '';
+    }
+    
+    // Kolom 11: Total OMSET BERSIH
+    const totalOmsetBersihCell = totalRow.querySelector('td:nth-child(11)');
+    if (totalOmsetBersihCell) {
+      totalOmsetBersihCell.textContent = totalOmsetBersihSum > 0 ? totalOmsetBersihSum.toLocaleString('id-ID') : '';
+    }
+    
+    // Kolom 12: Total BIAYA IKLAN
+    const totalBiayaIklanCell = totalRow.querySelector('td:nth-child(12)');
+    if (totalBiayaIklanCell) {
+      totalBiayaIklanCell.textContent = totalBiayaIklanSum > 0 ? totalBiayaIklanSum.toLocaleString('id-ID') : '';
+    }
+    
+    // Kolom 13: Total PROFIT
+    const totalProfitCell = totalRow.querySelector('td:nth-child(13)');
+    if (totalProfitCell) {
+      totalProfitCell.textContent = totalProfitSum !== 0 ? totalProfitSum.toLocaleString('id-ID') : '';
+    }
+    
+    // Kolom 14: Total CPL
+    const totalCplCell = totalRow.querySelector('td:nth-child(14)');
+    if (totalCplCell) {
+      totalCplCell.textContent = totalCpl > 0 ? totalCpl.toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : '';
+    }
+    
+    // Kolom 15: Total CAC
+    const totalCacCell = totalRow.querySelector('td:nth-child(15)');
+    if (totalCacCell) {
+      totalCacCell.textContent = totalCac > 0 ? totalCac.toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : '';
+    }
+    
+    // Kolom 16: Total CPP
+    const totalCppCell = totalRow.querySelector('td:nth-child(16)');
+    if (totalCppCell) {
+      totalCppCell.textContent = totalCpp > 0 ? totalCpp.toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : '';
+    }
+    
+    // Kolom 17: Total ROAS
+    const totalRoasCell = totalRow.querySelector('td:nth-child(17)');
+    if (totalRoasCell) {
+      totalRoasCell.textContent = totalRoas > 0 ? totalRoas.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
+    }
+    
+    // Kolom 18: Total ROI (%)
+    const totalRoiCell = totalRow.querySelector('td:nth-child(18)');
+    if (totalRoiCell) {
+      totalRoiCell.textContent = totalRoi !== 0 ? totalRoi.toFixed(2) + '%' : '';
+    }
+  }
+  
+  const rows = tbody.querySelectorAll('tr:not(#dailyDataTableTotalRow)');
   console.log(`=== Update Tabel ===`);
-  console.log(`Jumlah baris di tabel: ${rows.length}`);
+  console.log(`Jumlah baris di tabel (tanpa baris TOTAL): ${rows.length}`);
   console.log(`Data QTY AWB yang akan diisi:`, qtyAwbByDate);
   
   let updatedCountAwb = 0;
@@ -2575,6 +2931,13 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
     const margin = marginByDate[day] || 0;
     const subOngkir = subOngkirByDate[day] || 0;
     const omset = omsetByDate[day] || 0; // OMSET = HARGA JUAL - SUB ONGKIR (sudah di-aggregate per tanggal)
+    const biayaIklan = biayaIklanByDate[day] || 0; // BIAYA IKLAN dari data budget iklan (filter berdasarkan PRODUK/toko)
+    const profit = profitByDate[day] || 0; // PROFIT = MARGIN - BIAYA IKLAN - RTS
+    const cpl = cplByDate[day] || 0; // CPL = BIAYA IKLAN / QTY AWB
+    const cac = cacByDate[day] || 0; // CAC = BIAYA IKLAN / QTY AWB (sama dengan CPL)
+    const cpp = cppByDate[day] || 0; // CPP = BIAYA IKLAN / QTY Pcs
+    const roas = roasByDate[day] || 0; // ROAS = OMSET / BIAYA IKLAN
+    const roi = roiByDate[day] || 0; // ROI = (PROFIT / BIAYA IKLAN) * 100
     
     // Update kolom QTY AWB (kolom ke-2, setelah TANGGAL)
     const qtyAwbCell = row.querySelector('td:nth-child(2)');
@@ -2751,6 +3114,146 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
       }
     } else {
       console.error(`❌ Kolom OMSET BERSIH tidak ditemukan untuk baris ${day}!`);
+    }
+    
+    // Update kolom BIAYA IKLAN (kolom ke-12, setelah OMSET BERSIH)
+    // BIAYA IKLAN dari data budget iklan, filter berdasarkan PRODUK (toko yang dipilih)
+    const biayaIklanCell = row.querySelector('td:nth-child(12)');
+    if (biayaIklanCell) {
+      if (biayaIklan !== 0) {
+        // Format sebagai currency (Rupiah)
+        biayaIklanCell.textContent = biayaIklan.toLocaleString('id-ID');
+        if (day <= 5) {
+          console.log(`✓ Baris ${day} (tanggal ${day}): BIAYA IKLAN = ${biayaIklan.toLocaleString('id-ID')}`);
+        }
+      } else {
+        biayaIklanCell.textContent = '';
+        if (day <= 5) {
+          console.log(`✗ Baris ${day} (tanggal ${day}): BIAYA IKLAN = 0 (kosong)`);
+        }
+      }
+    } else {
+      console.error(`❌ Kolom BIAYA IKLAN tidak ditemukan untuk baris ${day}!`);
+    }
+    
+    // Update kolom PROFIT (kolom ke-13, setelah BIAYA IKLAN)
+    // PROFIT = MARGIN - BIAYA IKLAN - RTS
+    const profitCell = row.querySelector('td:nth-child(13)');
+    if (profitCell) {
+      if (profit !== 0) {
+        // Format sebagai currency (Rupiah), bisa negatif
+        profitCell.textContent = profit.toLocaleString('id-ID');
+        if (day <= 5) {
+          console.log(`✓ Baris ${day} (tanggal ${day}): PROFIT = ${profit.toLocaleString('id-ID')} (MARGIN: ${margin.toLocaleString('id-ID')} - BIAYA IKLAN: ${biayaIklan.toLocaleString('id-ID')} - RTS: ${rts.toLocaleString('id-ID')})`);
+        }
+      } else {
+        profitCell.textContent = '';
+        if (day <= 5) {
+          console.log(`✗ Baris ${day} (tanggal ${day}): PROFIT = 0 (kosong)`);
+        }
+      }
+    } else {
+      console.error(`❌ Kolom PROFIT tidak ditemukan untuk baris ${day}!`);
+    }
+    
+    // Update kolom CPL (Cost Per Lead) (kolom ke-14, setelah PROFIT)
+    // CPL = BIAYA IKLAN / QTY AWB
+    const cplCell = row.querySelector('td:nth-child(14)');
+    if (cplCell) {
+      if (cpl > 0) {
+        // Format sebagai currency (Rupiah)
+        cplCell.textContent = cpl.toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+        if (day <= 5) {
+          console.log(`✓ Baris ${day} (tanggal ${day}): CPL = ${cpl.toLocaleString('id-ID')} (BIAYA IKLAN: ${biayaIklan.toLocaleString('id-ID')} / QTY AWB: ${qtyAwb})`);
+        }
+      } else {
+        cplCell.textContent = '';
+        if (day <= 5) {
+          console.log(`✗ Baris ${day} (tanggal ${day}): CPL = 0 (kosong)`);
+        }
+      }
+    } else {
+      console.error(`❌ Kolom CPL tidak ditemukan untuk baris ${day}!`);
+    }
+    
+    // Update kolom CAC (Customer Acquisition Cost) (kolom ke-15, setelah CPL)
+    // CAC = BIAYA IKLAN / QTY AWB (sama dengan CPL)
+    const cacCell = row.querySelector('td:nth-child(15)');
+    if (cacCell) {
+      if (cac > 0) {
+        // Format sebagai currency (Rupiah)
+        cacCell.textContent = cac.toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+        if (day <= 5) {
+          console.log(`✓ Baris ${day} (tanggal ${day}): CAC = ${cac.toLocaleString('id-ID')} (BIAYA IKLAN: ${biayaIklan.toLocaleString('id-ID')} / QTY AWB: ${qtyAwb})`);
+        }
+      } else {
+        cacCell.textContent = '';
+        if (day <= 5) {
+          console.log(`✗ Baris ${day} (tanggal ${day}): CAC = 0 (kosong)`);
+        }
+      }
+    } else {
+      console.error(`❌ Kolom CAC tidak ditemukan untuk baris ${day}!`);
+    }
+    
+    // Update kolom CPP (Cost Per Purchase) (kolom ke-16, setelah CAC)
+    // CPP = BIAYA IKLAN / QTY Pcs
+    const cppCell = row.querySelector('td:nth-child(16)');
+    if (cppCell) {
+      if (cpp > 0) {
+        // Format sebagai currency (Rupiah)
+        cppCell.textContent = cpp.toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+        if (day <= 5) {
+          console.log(`✓ Baris ${day} (tanggal ${day}): CPP = ${cpp.toLocaleString('id-ID')} (BIAYA IKLAN: ${biayaIklan.toLocaleString('id-ID')} / QTY Pcs: ${qtyPcs})`);
+        }
+      } else {
+        cppCell.textContent = '';
+        if (day <= 5) {
+          console.log(`✗ Baris ${day} (tanggal ${day}): CPP = 0 (kosong)`);
+        }
+      }
+    } else {
+      console.error(`❌ Kolom CPP tidak ditemukan untuk baris ${day}!`);
+    }
+    
+    // Update kolom ROAS (Return on Ad Spend) (kolom ke-17, setelah CPP)
+    // ROAS = OMSET / BIAYA IKLAN
+    const roasCell = row.querySelector('td:nth-child(17)');
+    if (roasCell) {
+      if (roas > 0) {
+        // Format sebagai angka desimal (bukan currency)
+        roasCell.textContent = roas.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        if (day <= 5) {
+          console.log(`✓ Baris ${day} (tanggal ${day}): ROAS = ${roas.toFixed(2)} (OMSET: ${omset.toLocaleString('id-ID')} / BIAYA IKLAN: ${biayaIklan.toLocaleString('id-ID')})`);
+        }
+      } else {
+        roasCell.textContent = '';
+        if (day <= 5) {
+          console.log(`✗ Baris ${day} (tanggal ${day}): ROAS = 0 (kosong)`);
+        }
+      }
+    } else {
+      console.error(`❌ Kolom ROAS tidak ditemukan untuk baris ${day}!`);
+    }
+    
+    // Update kolom ROI (%) (kolom ke-18, setelah ROAS)
+    // ROI = (PROFIT / BIAYA IKLAN) * 100
+    const roiCell = row.querySelector('td:nth-child(18)');
+    if (roiCell) {
+      if (roi !== 0) {
+        // Format sebagai persentase dengan 2 desimal
+        roiCell.textContent = roi.toFixed(2) + '%';
+        if (day <= 5) {
+          console.log(`✓ Baris ${day} (tanggal ${day}): ROI = ${roi.toFixed(2)}% (PROFIT: ${profit.toLocaleString('id-ID')} / BIAYA IKLAN: ${biayaIklan.toLocaleString('id-ID')} * 100)`);
+        }
+      } else {
+        roiCell.textContent = '';
+        if (day <= 5) {
+          console.log(`✗ Baris ${day} (tanggal ${day}): ROI = 0% (kosong)`);
+        }
+      }
+    } else {
+      console.error(`❌ Kolom ROI tidak ditemukan untuk baris ${day}!`);
     }
   });
   
@@ -5060,10 +5563,11 @@ const updateDashboard = () => {
         budgetIklanCaption.innerHTML = `<strong>${formattedAmount}</strong> total`;
       }
 
-      // Simpan data budget iklan untuk perhitungan profit
+      // Simpan data budget iklan untuk perhitungan profit dan tabel harian
       window.budgetIklanData = {
         total: totalBudgetIklan,
-        aggregated: budgetAggregated
+        aggregated: budgetAggregated,
+        byDateAndProduk: budgetData.byDateAndProduk || {} // Simpan data per tanggal dan produk untuk tabel harian
       };
       console.log('Budget Iklan data saved. Checking retur data...', window.returDataCache ? 'READY' : 'NOT READY');
 
