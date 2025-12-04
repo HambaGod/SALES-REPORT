@@ -40,13 +40,13 @@ if %ERRORLEVEL% EQU 0 (
     echo Remote 'origin' sudah ada:
     git remote -v
     echo.
-    set /p CHANGE_REMOTE="Apakah ingin mengubah remote ke SALES-REPORT? (y/n): "
-    if /i "%CHANGE_REMOTE%"=="y" (
-        git remote remove origin
-        git remote add origin https://github.com/HambaGod/SALES-REPORT.git
-        echo Remote sudah diubah ke: https://github.com/HambaGod/SALES-REPORT.git
-        echo.
-    )
+    echo Memperbaiki remote ke SALES-REPORT...
+    git remote remove origin
+    git remote add origin https://github.com/HambaGod/SALES-REPORT.git
+    echo Remote sudah diubah ke: https://github.com/HambaGod/SALES-REPORT.git
+    echo.
+    git remote -v
+    echo.
 ) else (
     echo Menambahkan remote repository...
     git remote add origin https://github.com/HambaGod/SALES-REPORT.git
@@ -55,15 +55,26 @@ if %ERRORLEVEL% EQU 0 (
 )
 
 echo Step 3: Menambahkan semua file...
+echo.
+echo Mengecek file yang akan ditambahkan...
+git status
+echo.
+echo Menambahkan semua file ke staging...
 git add .
 echo.
 
-echo Step 4: Membuat commit pertama...
+echo Step 4: Mengecek file yang sudah di-staging...
+git status
+echo.
+
+echo Step 5: Membuat commit pertama...
 git commit -m "Initial commit - Upload project files"
 echo.
 
+REM Cek apakah commit berhasil
+git log --oneline -1 >nul 2>&1
 if %ERRORLEVEL% EQU 0 (
-    echo Step 5: Setting branch ke 'main'...
+    echo Step 6: Setting branch ke 'main'...
     git branch -M main
     echo.
     
@@ -73,18 +84,32 @@ if %ERRORLEVEL% EQU 0 (
     echo.
     echo Repository sudah siap untuk di-upload ke GitHub.
     echo.
-    echo Sekarang jalankan: upload-to-github.bat
-    echo Atau lanjutkan dengan push sekarang? (y/n)
+    echo Lanjutkan dengan push sekarang? (y/n)
     set /p CONTINUE=""
     if /i "%CONTINUE%"=="y" (
         echo.
-        echo Step 6: Push ke GitHub...
+        echo Step 7: Push ke GitHub...
         echo.
-        echo Jika ini pertama kali, Anda akan diminta login:
-        echo   Username: HambaGod
-        echo   Password: Personal Access Token (bukan password biasa)
+        echo PASTIKAN:
+        echo 1. Repository SALES-REPORT sudah dibuat di GitHub
+        echo    https://github.com/new
+        echo    Repository name: SALES-REPORT
+        echo.
+        echo 2. Jika diminta login:
+        echo    Username: HambaGod
+        echo    Password: Personal Access Token
+        echo    (Buat di: https://github.com/settings/tokens)
+        echo.
+        echo 3. Jika TIDAK diminta login, mungkin credential sudah tersimpan.
+        echo    Jika error, hapus credential dengan:
+        echo    git credential-manager-core erase
+        echo    atau
+        echo    Control Panel ^> Credential Manager ^> Windows Credentials
+        echo    Hapus entry GitHub
         echo.
         pause
+        echo.
+        echo Mencoba push ke GitHub...
         git push -u origin main
         
         if %ERRORLEVEL% EQU 0 (
