@@ -12,6 +12,10 @@ const GOOGLE_SHEETS_URLS = [
   {
     name: 'September',
     url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTnAs1HjcdlmcYy369WQAlBKihofg4680PsYVKUByzq1xsryAOjvsw7q2aIaGm30NzTbkMRRleupBsc/pub?gid=1771794388&single=true&output=csv'
+  },
+  {
+    name: 'Desember',
+    url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS3LSA3Z3e60bUzskklR1DScntT-n4TpKHbFmGiRtGMi2tNP-6swXW3_rxzIR1BnfFlCxS2CXuwH7rD/pub?gid=1771794388&single=true&output=csv'
   }
 ];
 
@@ -37,6 +41,9 @@ const BUDGET_IKLAN_URLS_LKM = {
   // November 2025
   '2025-11':
     'https://docs.google.com/spreadsheets/d/e/2PACX-1vTKcsgwf2YsGwnkDKQwfkNpC_kMUCxqIY5FDFl3uNpLOihk7h3m9WBipHmJVOJggvw0ZP4vWYQTtQIQ/pub?output=csv',
+  // Desember 2025
+  '2025-12':
+    'https://docs.google.com/spreadsheets/d/e/2PACX-1vTe4NHwKCvXPnSx7xQES2CzR2N2ph1QV95h073rg3Q7ul7yDytec9d3f0v-vByddjLMhbI0aCJLQei0/pub?gid=0&single=true&output=csv',
 };
 
 // URL budget iklan per bulan untuk NUMETA (format warehouse: TANGGAL, MARKETPLACE, PRODUK, TOTAL BIAYA IKLAN)
