@@ -870,6 +870,13 @@ const transformGoogleSheetsData = (rows) => {
       null;
 
     if (!date) {
+      // Debug: Log jika tanggal tidak bisa di-parse (hanya beberapa baris pertama)
+      if (records.length < 5) {
+        console.warn(`⚠️ Tanggal tidak bisa di-parse untuk row ${records.length}:`, {
+          'Tanggal Order': row['Tanggal Order'],
+          'Tanggal Input': row['Tanggal Input']
+        });
+      }
       continue;
     }
 
@@ -1045,6 +1052,23 @@ const transformGoogleSheetsData = (rows) => {
       console.log('Tanggal Order:', date);
       console.log('All headers:', headers);
       console.log('Sample row keys:', Object.keys(row).slice(0, 15));
+    }
+
+    // Debug: Log untuk beberapa record Desember 2025
+    const debugYear = date.getFullYear();
+    const debugMonth = date.getMonth() + 1;
+    if (debugYear === 2025 && debugMonth === 12 && records.length < 10) {
+      const doTypeRaw = row['Jenis DOA'];
+      const doTypeCleaned = cleanText(doTypeRaw);
+      console.log(`=== DESEMBER RECORD DEBUG (row ${records.length}) ===`);
+      console.log('Tanggal parsed:', date.toISOString());
+      console.log('Jenis DOA raw:', doTypeRaw, '→ cleaned:', doTypeCleaned);
+      console.log('Starts with LKM?', doTypeCleaned && doTypeCleaned.toUpperCase().startsWith('LKM'));
+      console.log('Contains LKM?', doTypeCleaned && doTypeCleaned.toUpperCase().includes('LKM'));
+      console.log('Harga Jual raw:', row['Harga Jual'], '→ parsed:', totalHargaJual);
+      console.log('Subsidi Ongkir raw:', row['Subsidi Ongkir'], '→ parsed:', totalSubsidiOngkir);
+      console.log('Omset calculated:', omset);
+      console.log('Margin raw:', row['Margin'], '→ parsed:', margin);
     }
 
     records.push({
@@ -1356,6 +1380,56 @@ const getAvailableMonths = () => {
     const counts = monthUnitCount[monthKey];
     console.log(`${monthLabel}: LBM=${counts.LBM}, LKM=${counts.LKM}, NUMETA=${counts.NUMETA}, Other=${counts.Other}`);
   });
+  
+  // Debug: Cek apakah Desember ada di records
+  if (months.includes('2025-12')) {
+    const desemberRecords = records.filter(r => {
+      const date = new Date(r.orderTs);
+      return date.getFullYear() === 2025 && date.getMonth() === 11; // Month 11 = December
+    });
+    console.log(`=== DESEMBER 2025 DEBUG ===`);
+    console.log(`Total records Desember 2025: ${desemberRecords.length}`);
+    if (desemberRecords.length > 0) {
+      // Group by doType untuk melihat distribusi
+      const doTypeCount = {};
+      desemberRecords.forEach(r => {
+        const doType = r.doType || 'NULL';
+        doTypeCount[doType] = (doTypeCount[doType] || 0) + 1;
+      });
+      console.log(`Distribusi doType Desember 2025:`, doTypeCount);
+      
+      // Cek apakah ada yang mengandung "LKM" (bukan hanya startsWith)
+      const lkmRecords = desemberRecords.filter(r => {
+        const doType = (r.doType || '').toUpperCase();
+        return doType.includes('LKM');
+      });
+      console.log(`Records dengan doType mengandung "LKM": ${lkmRecords.length}`);
+      if (lkmRecords.length > 0) {
+        console.log(`Sample LKM records:`, lkmRecords.slice(0, 3).map(r => ({
+          doType: r.doType,
+          unit: getBusinessUnit(r.doType)
+        })));
+      }
+      
+      console.log(`Sample Desember records (first 5):`, desemberRecords.slice(0, 5).map(r => ({
+        date: new Date(r.orderTs).toISOString(),
+        doType: r.doType,
+        unit: getBusinessUnit(r.doType),
+        omset: r.omset,
+        hargaJual: r.hargaJual,
+        margin: r.margin
+      })));
+    } else {
+      console.warn('⚠️ TIDAK ADA RECORDS DESEMBER 2025!');
+      console.log('Sample semua records untuk cek tanggal:', records.slice(0, 10).map(r => ({
+        date: new Date(r.orderTs).toISOString(),
+        year: new Date(r.orderTs).getFullYear(),
+        month: new Date(r.orderTs).getMonth() + 1
+      })));
+    }
+  } else {
+    console.warn('⚠️ DESEMBER 2025 TIDAK DITEMUKAN DI AVAILABLE MONTHS!');
+  }
 
   return months.map(monthKey => {
     const [year, month] = monthKey.split('-').map(Number);
@@ -1563,6 +1637,17 @@ const aggregateLeadLag = (data, revenueType = 'All') => {
 
   // Total menggunakan omset
   const total = data.reduce((sum, row) => sum + (row.omset || 0), 0);
+  
+  // Debug: Log jika total omset 0 tapi ada data
+  if (total === 0 && data.length > 0) {
+    console.warn('⚠️ WARNING: Total omset = 0 tapi ada data!');
+    console.log('Sample records omset:', data.slice(0, 5).map(r => ({
+      date: new Date(r.orderTs).toISOString(),
+      omset: r.omset,
+      hargaJual: r.hargaJual,
+      subsidiOngkir: r.subsidiOngkir
+    })));
+  }
 
   return { labels, datasets, total };
 };
