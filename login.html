@@ -225,6 +225,9 @@
                     // User 321 (NUMETA)
                     const validUsernameHash321 = '8d23cf6c86e834a7aa6eded54c26ce2bb2e74903538c61bdd5d2197997ab2f72';
                     const validPasswordHash321 = '8d23cf6c86e834a7aa6eded54c26ce2bb2e74903538c61bdd5d2197997ab2f72';
+                    // User develop (DEVELOP) - username: develop, password: 123
+                    const validUsernameDevelop = '947726dd6318753268f3bfbe5e87ae2afe220db399c26e119c181a59227b0c60';
+                    const validPasswordDevelop = 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3';
                     
                     let userType = null;
                     let isValid = false;
@@ -239,6 +242,11 @@
                         userType = 'NUMETA';
                         isValid = true;
                     }
+                    // Cek user develop (DEVELOP)
+                    else if (hashedUsername === validUsernameDevelop && hashedPassword === validPasswordDevelop) {
+                        userType = 'DEVELOP';
+                        isValid = true;
+                    }
                     
                     if (isValid) {
                         // Set session
@@ -246,8 +254,12 @@
                         sessionStorage.setItem('username', username);
                         sessionStorage.setItem('userType', userType);
                         
-                        // Redirect ke dashboard
-                        window.location.href = 'dashboard.html';
+                        // Redirect ke dashboard yang sesuai
+                        if (userType === 'DEVELOP') {
+                            window.location.href = 'develop.html';
+                        } else {
+                            window.location.href = 'dashboard.html';
+                        }
                     } else {
                         // Show error
                         loginError.textContent = 'Username atau password salah';

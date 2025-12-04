@@ -15,6 +15,9 @@
           <p class="company-name" id="companyName">Luzie Kreatif Mandiri</p>
         </div>
         <div style="display: flex; gap: 10px;">
+          <button id="backToDevelopBtn" class="refresh-btn" title="Back to Developer Dashboard" style="display: none;">
+            Developer
+          </button>
           <button id="refreshBtn" class="refresh-btn" title="Refresh data dari Google Sheets">
             Refresh
           </button>
@@ -265,10 +268,33 @@
         window.location.href = 'login.html';
       }
       
+      // Check if user is DEVELOP viewing as LKM/NUMETA
+      const originalUserType = sessionStorage.getItem('originalUserType');
+      const currentUserType = sessionStorage.getItem('userType');
+      
+      // Redirect pure DEVELOP user ke develop.html
+      if (currentUserType === 'DEVELOP' && !originalUserType) {
+        window.location.href = 'develop.html';
+      }
+      
       // Update title berdasarkan userType setelah DOM ready
       document.addEventListener('DOMContentLoaded', function() {
         const userType = sessionStorage.getItem('userType') || 'LKM';
         console.log('UserType dari sessionStorage:', userType);
+        
+        // Show "Back to Developer" button if originalUserType is DEVELOP
+        if (originalUserType === 'DEVELOP') {
+          const backBtn = document.getElementById('backToDevelopBtn');
+          if (backBtn) {
+            backBtn.style.display = 'block';
+            backBtn.addEventListener('click', function() {
+              // Restore original userType
+              sessionStorage.setItem('userType', originalUserType);
+              sessionStorage.removeItem('originalUserType');
+              window.location.href = 'develop.html';
+            });
+          }
+        }
         
         const dashboardTitle = document.getElementById('dashboardTitle');
         const companyName = document.getElementById('companyName');

@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Developer Dashboard - SALES</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ffffff'><path d='M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z'/></svg>">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-image: url('gambar 1.png');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 20px 30px;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2), 0 4px 8px rgba(0, 0, 0, 0.15);
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transform: translateZ(0);
+        }
+
+        .header h1 {
+            color: #000B58;
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 14px;
+            margin-top: 4px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .btn-primary {
+            background: #006A67;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #005552;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(0, 106, 103, 0.4), 0 4px 8px rgba(0, 106, 103, 0.3);
+        }
+
+        .btn-secondary {
+            background: #FDEB9E;
+            color: #000B58;
+        }
+
+        .btn-secondary:hover {
+            background: #fce67d;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(253, 235, 158, 0.4), 0 3px 6px rgba(253, 235, 158, 0.3);
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(239, 68, 68, 0.3), 0 3px 6px rgba(239, 68, 68, 0.2);
+        }
+
+        .btn-success {
+            background: #006A67;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #005552;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 106, 103, 0.3), 0 3px 6px rgba(0, 106, 103, 0.2);
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25), 0 5px 10px rgba(0, 0, 0, 0.15);
+            padding: 30px;
+            margin-bottom: 20px;
+            transform: translateZ(0);
+            transition: box-shadow 0.3s ease, transform 0.3s ease;
+        }
+
+        .card:hover {
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3), 0 8px 15px rgba(0, 0, 0, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .card h2 {
+            color: #000B58;
+            font-size: 20px;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #006A67;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 3px solid #006A67;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            background: none;
+            border: none;
+            border-bottom: 3px solid transparent;
+            font-size: 14px;
+            font-weight: 600;
+            color: #666;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .tab.active {
+            color: #000B58;
+            border-bottom-color: #006A67;
+            transform: scale(1.1);
+            background: rgba(253, 235, 158, 0.3);
+            border-radius: 8px 8px 0 0;
+            box-shadow: 0 -4px 12px rgba(0, 106, 103, 0.3), 0 4px 8px rgba(0, 106, 103, 0.2);
+            z-index: 10;
+        }
+
+        .tab:hover {
+            color: #006A67;
+            transform: scale(1.05);
+            background: rgba(253, 235, 158, 0.15);
+            border-radius: 8px 8px 0 0;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        th {
+            background: #f9fafb;
+            color: #374151;
+            font-weight: 600;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        td {
+            color: #6b7280;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #374151;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #006A67;
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4), 0 10px 20px rgba(0, 0, 0, 0.3);
+            transform: translateZ(0);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-header h3 {
+            color: #333;
+            font-size: 20px;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: #999;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .close-btn:hover {
+            color: #333;
+        }
+
+        .code-output {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            overflow-x: auto;
+            white-space: pre;
+            margin: 20px 0;
+            max-height: 400px;
+            overflow-y: auto;
+            box-shadow: inset 0 4px 8px rgba(0, 0, 0, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+        }
+
+        .status-success {
+            background: #FDEB9E;
+            color: #000B58;
+        }
+
+        .status-error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .status-pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .link-preview {
+            font-size: 12px;
+            color: #667eea;
+            word-break: break-all;
+            margin-top: 4px;
+        }
+
+        .action-btns {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        .alert {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .alert-success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #6ee7b7;
+        }
+
+        .alert-error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+        }
+
+        .alert-info {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #93c5fd;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #9ca3af;
+        }
+
+        .empty-state svg {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #f3f4f6;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .help-text {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Cek apakah user sudah login sebagai DEVELOP -->
+    <script>
+        if (sessionStorage.getItem('isLoggedIn') !== 'true' || sessionStorage.getItem('userType') !== 'DEVELOP') {
+            window.location.href = 'login.html';
+        }
+    </script>
+
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div>
+                <h1>DEVELOPER DASHBOARD</h1>
+                <p>Manage Data Sources & Configuration</p>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn btn-secondary" onclick="viewDashboardAs('LKM')">
+                    View as LKM
+                </button>
+                <button class="btn btn-secondary" onclick="viewDashboardAs('NUMETA')">
+                    View as NUMETA
+                </button>
+                <button class="btn btn-danger" onclick="logout()">
+                    Logout
+                </button>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="card">
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('penjualan')">DATA PENJUALAN</button>
+                <button class="tab" onclick="switchTab('iklan-lkm')">BUDGET IKLAN LKM</button>
+                <button class="tab" onclick="switchTab('iklan-numeta')">BUDGET IKLAN NUMETA</button>
+                <button class="tab" onclick="switchTab('retur')">DATA RETUR</button>
+                <button class="tab" onclick="switchTab('generate')">GENERATE CODE</button>
+            </div>
+
+            <!-- Alert Container -->
+            <div id="alertContainer"></div>
+
+            <!-- Tab: Data Penjualan -->
+            <div id="tab-penjualan" class="tab-content active">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 style="margin: 0;">Data Penjualan</h2>
+                    <button class="btn btn-primary" onclick="openAddModal('penjualan')">
+                        + Tambah Bulan
+                    </button>
+                </div>
+                <table id="tablePenjualan">
+                    <thead>
+                        <tr>
+                            <th>Bulan</th>
+                            <th>Google Sheets URL</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Will be populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Tab: Budget Iklan LKM -->
+            <div id="tab-iklan-lkm" class="tab-content">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 style="margin: 0;">Budget Iklan LKM</h2>
+                    <button class="btn btn-primary" onclick="openAddModal('iklan-lkm')">
+                        + Tambah Bulan
+                    </button>
+                </div>
+                <table id="tableIklanLKM">
+                    <thead>
+                        <tr>
+                            <th>Bulan (YYYY-MM)</th>
+                            <th>Google Sheets URL</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Will be populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Tab: Budget Iklan NUMETA -->
+            <div id="tab-iklan-numeta" class="tab-content">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 style="margin: 0;">Budget Iklan NUMETA</h2>
+                    <button class="btn btn-primary" onclick="openAddModal('iklan-numeta')">
+                        + Tambah Bulan
+                    </button>
+                </div>
+                <table id="tableIklanNUMETA">
+                    <thead>
+                        <tr>
+                            <th>Bulan (YYYY-MM)</th>
+                            <th>Google Sheets URL</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Will be populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Tab: Data Retur -->
+            <div id="tab-retur" class="tab-content">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 style="margin: 0;">Data Retur</h2>
+                    <button class="btn btn-primary" onclick="openAddModal('retur')">
+                        + Tambah Bulan
+                    </button>
+                </div>
+                <table id="tableRetur">
+                    <thead>
+                        <tr>
+                            <th>Bulan (YYYY-MM)</th>
+                            <th>Google Sheets URL</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Will be populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Tab: Generate Code -->
+            <div id="tab-generate" class="tab-content">
+                <h2>Generate JavaScript Code</h2>
+                <p style="color: #6b7280; margin-bottom: 20px;">
+                    Klik tombol di bawah untuk generate kode JavaScript yang siap di-paste ke <code>app.js</code>
+                </p>
+                
+                <button class="btn btn-success" onclick="generateCode()" style="margin-bottom: 20px;">
+                    Generate Code
+                </button>
+
+                <div id="codeOutput" style="display: none;">
+                    <h3 style="margin-bottom: 10px;">Generated Code:</h3>
+                    <div class="alert alert-info">
+                        <strong>Instruksi:</strong>
+                        <ol style="margin: 10px 0 0 20px;">
+                            <li>Copy kode di bawah ini</li>
+                            <li>Buka file <code>app.js</code></li>
+                            <li>Cari bagian konfigurasi (line 1-50)</li>
+                            <li>Replace konfigurasi lama dengan kode baru</li>
+                            <li>Save file</li>
+                            <li>Refresh dashboard untuk melihat perubahan</li>
+                        </ol>
+                    </div>
+                    <div class="code-output" id="generatedCode"></div>
+                    <button class="btn btn-primary" onclick="copyCode()">
+                        Copy to Clipboard
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Add/Edit Data -->
+    <div id="dataModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">Tambah Data</h3>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            <form id="dataForm" onsubmit="saveData(event)">
+                <input type="hidden" id="modalType">
+                <input type="hidden" id="modalMode">
+                <input type="hidden" id="modalIndex">
+
+                <div class="form-group">
+                    <label for="inputMonth" id="labelMonth">Nama Bulan</label>
+                    <input type="text" id="inputMonth" placeholder="Contoh: Desember, Januari" required>
+                    <p class="help-text" id="helpMonth">Untuk data penjualan, gunakan nama bulan (Desember, Januari). Untuk data lainnya, gunakan format YYYY-MM (2025-12)</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="inputURL">Google Sheets URL</label>
+                    <input type="url" id="inputURL" placeholder="https://docs.google.com/spreadsheets/..." required>
+                    <p class="help-text">Pastikan link sudah di-publish dan mengandung <code>&output=csv</code></p>
+                </div>
+
+                <div class="form-group">
+                    <button type="button" class="btn btn-secondary" onclick="validateURL()" id="btnValidate">
+                        Validasi URL
+                    </button>
+                    <div id="validationResult" style="margin-top: 10px;"></div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">
+                        Batal
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        Simpan
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="develop.js"></script>
+</body>
+</html>
+
