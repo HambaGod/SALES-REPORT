@@ -418,8 +418,22 @@
 <body>
     <!-- Cek apakah user sudah login sebagai DEVELOP -->
     <script>
-        if (sessionStorage.getItem('isLoggedIn') !== 'true' || sessionStorage.getItem('userType') !== 'DEVELOP') {
+        const isLoggedIn = sessionStorage.getItem('isLoggedIn') === 'true';
+        const userType = sessionStorage.getItem('userType');
+        const originalUserType = sessionStorage.getItem('originalUserType');
+        
+        // Hanya user DEVELOP yang bisa akses
+        // Jika ada originalUserType, berarti user sedang "View as" dari develop dashboard
+        // Jika tidak ada originalUserType, userType harus DEVELOP
+        if (!isLoggedIn || (userType !== 'DEVELOP' && originalUserType !== 'DEVELOP')) {
+            alert('Akses ditolak! Hanya user DEVELOP yang dapat mengakses halaman ini.');
             window.location.href = 'login.html';
+        }
+        
+        // Jika user sedang "View as LKM/NUMETA", restore ke DEVELOP
+        if (originalUserType === 'DEVELOP' && userType !== 'DEVELOP') {
+            sessionStorage.setItem('userType', 'DEVELOP');
+            sessionStorage.removeItem('originalUserType');
         }
     </script>
 
