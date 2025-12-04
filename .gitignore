@@ -6,8 +6,8 @@ package-lock.json
 dist/
 build/
 .generated/
-generated/
-scripts/
+# generated/ - KOMENTAR: Uncomment jika tidak ingin upload generated files
+# scripts/ - KOMENTAR: Uncomment jika tidak ingin upload scripts
 
 # Excel files (terlalu besar untuk deploy)
 *.xlsx
@@ -35,6 +35,6 @@ npm-debug.log*
 .netlify/
 
 # File yang tidak perlu untuk deploy
-vercel.json
+# vercel.json - KOMENTAR: Uncomment jika tidak ingin upload vercel.json
 bauhaus architecture drawings - Google Search.jpg
-coffee.gif
+# coffee.gif - KOMENTAR: Uncomment jika tidak ingin upload coffee.gif
