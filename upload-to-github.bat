@@ -39,10 +39,38 @@ if exist ".git" (
     REM Set remote jika belum ada
     git remote -v | findstr "origin" >nul 2>&1
     if %ERRORLEVEL% NEQ 0 (
+        echo.
+        echo ========================================
+        echo   SETUP REMOTE REPOSITORY
+        echo ========================================
+        echo.
+        echo Repository GitHub yang akan digunakan:
+        echo   https://github.com/HambaGod/SALES-REPORT
+        echo.
+        echo Jika repository belum ada, buat dulu di GitHub:
+        echo   1. Buka https://github.com/new
+        echo   2. Repository name: SALES-REPORT
+        echo   3. Pilih Public atau Private
+        echo   4. JANGAN centang "Initialize with README"
+        echo   5. Klik "Create repository"
+        echo.
+        pause
+        echo.
         echo Menambahkan remote repository...
         git remote add origin https://github.com/HambaGod/SALES-REPORT.git
         echo Remote 'origin' ditambahkan: https://github.com/HambaGod/SALES-REPORT.git
         echo.
+    ) else (
+        echo Remote repository sudah ada:
+        git remote -v
+        echo.
+        set /p CHANGE_REMOTE="Apakah ingin mengubah remote? (y/n): "
+        if /i "%CHANGE_REMOTE%"=="y" (
+            git remote remove origin
+            git remote add origin https://github.com/HambaGod/SALES-REPORT.git
+            echo Remote sudah diubah ke: https://github.com/HambaGod/SALES-REPORT.git
+            echo.
+        )
     )
 )
 
@@ -83,7 +111,32 @@ if %ERRORLEVEL% NEQ 0 (
         git branch -M main
     )
     
-    REM Push ke GitHub
+    REM Cek apakah branch main sudah ada di remote
+    echo Mencoba push ke GitHub...
+    git push -u origin main 2>&1 | findstr /C:"Repository not found" >nul
+    if %ERRORLEVEL% EQU 0 (
+        echo.
+        echo ========================================
+        echo   REPOSITORY TIDAK DITEMUKAN!
+        echo ========================================
+        echo.
+        echo Repository https://github.com/HambaGod/SALES-REPORT belum ada.
+        echo.
+        echo Silakan buat repository terlebih dahulu:
+        echo   1. Buka https://github.com/new
+        echo   2. Owner: HambaGod
+        echo   3. Repository name: SALES-REPORT
+        echo   4. Pilih Public atau Private
+        echo   5. JANGAN centang "Initialize with README"
+        echo   6. JANGAN centang "Add .gitignore" atau "Choose a license"
+        echo   7. Klik "Create repository"
+        echo.
+        echo Setelah repository dibuat, jalankan script ini lagi.
+        echo.
+        pause
+        exit /b 1
+    )
+    
     git push -u origin main
     
     if %ERRORLEVEL% EQU 0 (
