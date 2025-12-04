@@ -1,0 +1,9 @@
+node_modules/
+.git/
+*.bat
+*.log
+.DS_Store
+.env
+.env.local
+
+

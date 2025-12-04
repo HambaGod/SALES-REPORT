@@ -18,24 +18,33 @@ const GOOGLE_SHEETS_URLS = [
 // ===== KONFIGURASI GOOGLE SHEETS RETUR =====
 // URL retur untuk setiap bulan (hanya bulan yang memiliki data retur)
 const RETUR_SHEETS_URLS = {
-  // Oktober: logika khusus (kolom X, filter kolom C = "LKM")
+  // Oktober: logika khusus (kolom X, filter kolom C sesuai userType)
   '2025-10': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSX2lc2z97Z-EspZGqZn98Pk5BLlLa5bjeTdUoncvaOCBrRqIsHBW3OcFJesV1uOzADKaf_dAmsa_on/pub?gid=2023930332&single=true&output=csv',
-  // November: logika standar (kolom Y, filter kolom D = "LKM")
+  // November: logika standar (kolom Y, filter kolom D sesuai userType)
   '2025-11': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS6hIfTqlz0foN93TERhgrI635-GTHlnh2uYKyVNi3E2yYta0tYMzwpaAzaC0L834-sPxkTHTCxWUDT/pub?gid=2023930332&single=true&output=csv'
 };
 
 // ===== KONFIGURASI GOOGLE SHEETS BUDGET IKLAN =====
 // URL default budget iklan (jika monthKey belum punya URL spesifik)
-const BUDGET_IKLAN_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTKcsgwf2YsGwnkDKQwfkNpC_kMUCxqIY5FDFl3uNpLOihk7h3m9WBipHmJVOJggvw0ZP4vWYQTtQIQ/pub?output=csv';
+const BUDGET_IKLAN_URL_LKM = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTKcsgwf2YsGwnkDKQwfkNpC_kMUCxqIY5FDFl3uNpLOihk7h3m9WBipHmJVOJggvw0ZP4vWYQTtQIQ/pub?output=csv';
+const BUDGET_IKLAN_URL_NUMETA = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTKcsgwf2YsGwnkDKQwfkNpC_kMUCxqIY5FDFl3uNpLOihk7h3m9WBipHmJVOJggvw0ZP4vWYQTtQIQ/pub?output=csv'; // TODO: Ganti dengan URL NUMETA yang sebenarnya
 
-// URL budget iklan per bulan (format warehouse: TANGGAL, MARKETPLACE, PRODUK, TOTAL BIAYA IKLAN)
-const BUDGET_IKLAN_URLS = {
+// URL budget iklan per bulan untuk LKM (format warehouse: TANGGAL, MARKETPLACE, PRODUK, TOTAL BIAYA IKLAN)
+const BUDGET_IKLAN_URLS_LKM = {
   // Oktober 2025
   '2025-10':
     'https://docs.google.com/spreadsheets/d/e/2PACX-1vRM4Diwo8TCXyfXm2v2LwYZ1spYmTllCJ8EI9w-jYOnLO32FfCsvhOWngQ8Qf12AlU3KKYoMoO_HUxM/pub?gid=0&single=true&output=csv',
   // November 2025
   '2025-11':
     'https://docs.google.com/spreadsheets/d/e/2PACX-1vTKcsgwf2YsGwnkDKQwfkNpC_kMUCxqIY5FDFl3uNpLOihk7h3m9WBipHmJVOJggvw0ZP4vWYQTtQIQ/pub?output=csv',
+};
+
+// URL budget iklan per bulan untuk NUMETA (format warehouse: TANGGAL, MARKETPLACE, PRODUK, TOTAL BIAYA IKLAN)
+const BUDGET_IKLAN_URLS_NUMETA = {
+  // Oktober 2025
+  '2025-10': '', // TODO: Isi dengan URL NUMETA untuk Oktober
+  // November 2025
+  '2025-11': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQsFmsdf-SyrepTVQHgtetHOQ4RRApqYOWFUp4vN5Qu1J_21OlILYVzhfEkjHQ8HYitR6ul7Sksgq8W/pub?gid=0&single=true&output=csv',
 };
 
 // ===== FUNGSI UNTUK FETCH DATA DARI SATU URL =====
@@ -202,8 +211,9 @@ const fetchReturData = async (monthKey = null, marketplaceFilter = 'All') => {
     }
 
     if (isOktober) {
-      // LOGIKA OKTOBER: Total kolom X, jika kolom C = "LKM" dan kolom B sesuai marketplace filter
-      console.log('Menggunakan logika Oktober: kolom X, filter kolom C = "LKM", filter kolom B = marketplace');
+      // LOGIKA OKTOBER: Total kolom X, jika kolom C sesuai userType dan kolom B sesuai marketplace filter
+      const userTypeForLogOktober = getUserType().toUpperCase();
+      console.log(`Menggunakan logika Oktober: kolom X, filter kolom C = "${userTypeForLogOktober}", filter kolom B = marketplace`);
 
       // Cari kolom C (index 2) = "Lini Bisnis" (untuk Oktober)
       let columnCIndex = -1;
@@ -263,15 +273,16 @@ const fetchReturData = async (monthKey = null, marketplaceFilter = 'All') => {
       console.log(`Kolom C ditemukan: "${columnCName}" (index ${columnCIndex})`);
       console.log(`Kolom X ditemukan: "${columnXName}" (index ${columnXIndex})`);
 
-      // Hitung total dari kolom X, HANYA untuk baris yang kolom C = "LKM" dan kolom B sesuai filter
+      // Hitung total dari kolom X, HANYA untuk baris yang kolom C sesuai userType dan kolom B sesuai filter
+      const userTypeOktober = getUserType().toUpperCase();
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
 
-        // Cek apakah kolom C = "LKM"
+        // Cek apakah kolom C sesuai dengan userType (LKM atau NUMETA)
         const liniBisnis = row[columnCName];
         const liniBisnisStr = liniBisnis ? String(liniBisnis).trim().toUpperCase() : '';
 
-        if (liniBisnisStr === 'LKM') {
+        if (liniBisnisStr === userTypeOktober) {
           // Filter marketplace berdasarkan kolom B
           // Logika: Filter TikTok = kolom B mengandung "TIKTOK" ATAU "_T"
           //         Filter Shopee = kolom B mengandung "SHOPEE" ATAU "_S"
@@ -302,7 +313,7 @@ const fetchReturData = async (monthKey = null, marketplaceFilter = 'All') => {
           }
 
           if (shouldInclude) {
-            // Jika kolom C = "LKM" dan kolom B sesuai filter, jumlahkan kolom X
+            // Jika kolom C sesuai userType dan kolom B sesuai filter, jumlahkan kolom X
             const value = row[columnXName];
             const numValue = toNumber(value);
             total += numValue;
@@ -373,8 +384,9 @@ const fetchReturData = async (monthKey = null, marketplaceFilter = 'All') => {
       console.log(`Total Retur/RTS Oktober: ${total.toLocaleString('id-ID')} (dari ${rows.length} baris, ${count} baris dengan nilai, ${skipped} baris di-skip, filter marketplace: ${marketplaceFilter})`);
       return { total, records: returRecords };
     } else {
-      // LOGIKA NOVEMBER+: Total kolom Y, jika kolom D = "LKM" dan kolom B sesuai marketplace filter
-      console.log('Menggunakan logika November+: kolom Y, filter kolom D = "LKM", filter kolom B = marketplace');
+      // LOGIKA NOVEMBER+: Total kolom Y, jika kolom D sesuai userType dan kolom B sesuai marketplace filter
+      const userTypeForLog = getUserType().toUpperCase();
+      console.log(`Menggunakan logika November+: kolom Y, filter kolom D = "${userTypeForLog}", filter kolom B = marketplace`);
 
       // Cari kolom D (index 3) = "Lini Bisnis"
       let columnDIndex = -1;
@@ -434,15 +446,16 @@ const fetchReturData = async (monthKey = null, marketplaceFilter = 'All') => {
       console.log(`Kolom D (Lini Bisnis) ditemukan: "${columnDName}" (index ${columnDIndex})`);
       console.log(`Kolom Y ditemukan: "${columnYName}" (index ${columnYIndex})`);
 
-      // Hitung total dari kolom Y, HANYA untuk baris yang kolom D = "LKM" dan kolom B sesuai filter
+      // Hitung total dari kolom Y, HANYA untuk baris yang kolom D sesuai userType dan kolom B sesuai filter
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
 
-        // Cek apakah kolom D = "LKM"
+        // Cek apakah kolom D sesuai dengan userType (LKM atau NUMETA)
         const liniBisnis = row[columnDName];
         const liniBisnisStr = liniBisnis ? String(liniBisnis).trim().toUpperCase() : '';
+        const userType = getUserType().toUpperCase();
 
-        if (liniBisnisStr === 'LKM') {
+        if (liniBisnisStr === userType) {
           // Filter marketplace berdasarkan kolom B
           // Logika: Filter TikTok = kolom B mengandung "TIKTOK" ATAU "_T"
           //         Filter Shopee = kolom B mengandung "SHOPEE" ATAU "_S"
@@ -473,7 +486,7 @@ const fetchReturData = async (monthKey = null, marketplaceFilter = 'All') => {
           }
 
           if (shouldInclude) {
-            // Jika kolom D = "LKM" dan kolom B sesuai filter, jumlahkan kolom Y
+            // Jika kolom D sesuai userType dan kolom B sesuai filter, jumlahkan kolom Y
             const value = row[columnYName];
             const numValue = toNumber(value);
             total += numValue;
@@ -558,13 +571,18 @@ const fetchBudgetIklanData = async (monthKey = null, marketplaceFilter = 'All') 
   try {
     console.log(`Fetching budget iklan data for month: ${monthKey}, marketplace: ${marketplaceFilter}`);
 
-    // Tentukan URL berdasarkan monthKey
-    let budgetUrl = BUDGET_IKLAN_URL; // Default fallback
-    if (monthKey && BUDGET_IKLAN_URLS[monthKey]) {
-      budgetUrl = BUDGET_IKLAN_URLS[monthKey];
-      console.log(`Menggunakan URL budget iklan untuk ${monthKey}`);
+    // Ambil userType dari sessionStorage
+    const userType = getUserType();
+    
+    // Tentukan URL berdasarkan userType dan monthKey
+    let budgetUrl = userType === 'NUMETA' ? BUDGET_IKLAN_URL_NUMETA : BUDGET_IKLAN_URL_LKM; // Default fallback
+    const budgetUrls = userType === 'NUMETA' ? BUDGET_IKLAN_URLS_NUMETA : BUDGET_IKLAN_URLS_LKM;
+    
+    if (monthKey && budgetUrls[monthKey]) {
+      budgetUrl = budgetUrls[monthKey];
+      console.log(`Menggunakan URL budget iklan ${userType} untuk ${monthKey}`);
     } else if (monthKey) {
-      console.warn(`Data budget iklan untuk ${monthKey} tidak ditemukan, menggunakan URL default`);
+      console.warn(`Data budget iklan ${userType} untuk ${monthKey} tidak ditemukan, menggunakan URL default`);
     }
 
     // Fetch CSV dari Google Sheets
@@ -1236,11 +1254,17 @@ const currencyFormatter = new Intl.NumberFormat('id-ID', {
   maximumFractionDigits: 0,
 });
 
+// Helper function untuk mendapatkan userType dari sessionStorage
+// Harus didefinisikan sebelum filters karena filters menggunakannya
+const getUserType = () => {
+  return sessionStorage.getItem('userType') || 'LKM';
+};
+
 const filters = {
   start: null,
   end: null,
   revenueType: 'All', // Sekarang digunakan untuk filter Unit Bisnis LKM (LKM MP SHOPEE, LKM MP TIKTOK, dll)
-  subCategory: 'LKM', // Default ke LKM (untuk filter utama)
+  subCategory: getUserType(), // Default berdasarkan userType dari sessionStorage
 };
 
 let elements = {};
@@ -1440,13 +1464,19 @@ const filterRecords = () => {
   endDate.setHours(23, 59, 59, 999);
   const endTs = endDate.getTime();
 
-  return records.filter((record) => {
+  // Ambil userType dari sessionStorage (LKM atau NUMETA)
+  const userType = getUserType();
+  console.log('=== FILTER RECORDS DEBUG ===');
+  console.log('UserType dari sessionStorage:', userType);
+  console.log('Total records sebelum filter:', records.length);
+
+  const filtered = records.filter((record) => {
     if (!record || !record.orderTs) return false;
     if (record.orderTs < startTs) return false;
     if (record.orderTs > endTs) return false;
 
-    // Filter Unit Bisnis utama - default ke LKM
-    const targetUnit = filters.subCategory || 'LKM';
+    // Filter Unit Bisnis utama berdasarkan userType (LKM atau NUMETA)
+    const targetUnit = userType;
     if (targetUnit !== 'All') {
       const recordUnit = getBusinessUnit(record.doType);
       if (recordUnit !== targetUnit) {
@@ -1470,6 +1500,15 @@ const filterRecords = () => {
 
     return true;
   });
+  
+  console.log('Total records setelah filter:', filtered.length);
+  console.log('Sample filtered records (first 3):', filtered.slice(0, 3).map(r => ({
+    doType: r.doType,
+    unit: getBusinessUnit(r.doType),
+    date: new Date(r.orderTs).toISOString()
+  })));
+  
+  return filtered;
 };
 
 const aggregateByMonth = (data, valueKey = 'revenue') => {
@@ -1770,21 +1809,31 @@ const getAvailableStores = (marketplaceFilter) => {
     return []; // Jika bukan TikTok, Shopee, atau Lazada, return empty
   }
 
-  console.log(`Mencari toko dengan suffix: ${suffix} untuk marketplace: ${marketplaceFilter}`);
-  console.log(`Total records: ${window.records.length}`);
+  // Filter records berdasarkan userType terlebih dahulu
+  const userType = getUserType();
+  const filteredRecords = window.records.filter(record => {
+    if (!record || !record.doType) return false;
+    const recordUnit = getBusinessUnit(record.doType);
+    return recordUnit === userType;
+  });
 
-  // Ambil unique toko dari kolom C (field store) yang sesuai suffix
+  console.log(`Mencari toko dengan suffix: ${suffix} untuk marketplace: ${marketplaceFilter}, userType: ${userType}`);
+  console.log(`Total records: ${window.records.length}, Filtered by userType (${userType}): ${filteredRecords.length}`);
+
+  // Ambil unique toko dari kolom C (field store) yang sesuai suffix dan userType
   const stores = new Set();
   let recordsWithStore = 0;
   let recordsWithSuffix = 0;
   
-  window.records.forEach((record, index) => {
+  filteredRecords.forEach((record, index) => {
     // Debug beberapa record pertama
     if (index < 5) {
       console.log(`Record ${index}:`, {
         hasStore: !!record.store,
         store: record.store,
-        storeType: typeof record.store
+        storeType: typeof record.store,
+        doType: record.doType,
+        unit: getBusinessUnit(record.doType)
       });
     }
     
@@ -3390,10 +3439,11 @@ const initSelect = (select, options) => {
 };
 
 const initFilters = () => {
-  // Set default Unit Bisnis ke LKM
-  filters.subCategory = 'LKM';
+  // Set default Unit Bisnis berdasarkan userType dari sessionStorage
+  const userType = getUserType();
+  filters.subCategory = userType;
   if (elements.subCategory) {
-    elements.subCategory.value = 'LKM';
+    elements.subCategory.value = userType;
   }
 
   // Generate dropdown bulan dari data yang tersedia
@@ -5119,6 +5169,29 @@ const updateDashboard = () => {
     }
   }
 
+  // Debug: Cek filtered records untuk memastikan hanya data userType yang benar
+  const userTypeCheck = getUserType();
+  const filteredByUnit = filtered.filter(r => {
+    const unit = getBusinessUnit(r.doType);
+    return unit === userTypeCheck;
+  });
+  console.log(`=== FILTERED RECORDS VERIFICATION ===`);
+  console.log(`UserType: ${userTypeCheck}`);
+  console.log(`Total filtered records: ${filtered.length}`);
+  console.log(`Filtered records matching userType (${userTypeCheck}): ${filteredByUnit.length}`);
+  if (filtered.length !== filteredByUnit.length) {
+    console.warn(`⚠️ WARNING: Ada ${filtered.length - filteredByUnit.length} records yang tidak sesuai userType!`);
+    const wrongRecords = filtered.filter(r => {
+      const unit = getBusinessUnit(r.doType);
+      return unit !== userTypeCheck;
+    });
+    console.log('Sample wrong records:', wrongRecords.slice(0, 3).map(r => ({
+      doType: r.doType,
+      unit: getBusinessUnit(r.doType),
+      date: new Date(r.orderTs).toISOString()
+    })));
+  }
+
   const leadLag = aggregateLeadLag(filtered, filters.revenueType);
   if (charts.leadLag) {
     charts.leadLag.data.labels = leadLag.labels;
@@ -5208,6 +5281,8 @@ const updateDashboard = () => {
 
     // Update Omset Bersih total
     if (elements.omsetKotorTotal) {
+      console.log(`=== OMSET BERSIH ===`);
+      console.log(`UserType: ${getUserType()}, Total Omset: ${totalOmset.total.toLocaleString('id-ID')}, Total Retur: ${totalRetur.toLocaleString('id-ID')}, Omset Bersih: ${omsetBersih.toLocaleString('id-ID')}, Records used: ${filtered.length}`);
       const formattedAmount = currencyFormatter.format(omsetBersih);
       elements.omsetKotorTotal.innerHTML = `<strong>${formattedAmount}</strong> total`;
     }
@@ -5337,6 +5412,8 @@ const updateDashboard = () => {
     if (elements.hargaJualTotal) {
       const hargaJualAggregated = aggregateHargaJualByWeek(filtered);
       const totalHargaJual = hargaJualAggregated.total || 0;
+      console.log(`=== TOTAL HARGA JUAL ===`);
+      console.log(`UserType: ${getUserType()}, Total Harga Jual: ${totalHargaJual.toLocaleString('id-ID')}, Records used: ${filtered.length}`);
       if (totalHargaJual === 0) {
         elements.hargaJualTotal.innerHTML = `<strong>Rp 0</strong> total`;
       } else {
@@ -5368,6 +5445,8 @@ const updateDashboard = () => {
     // Update total margin
     if (elements.marginTotal) {
       const totalMargin = marginAggregated.total || 0;
+      console.log(`=== TOTAL MARGIN ===`);
+      console.log(`UserType: ${getUserType()}, Total Margin: ${totalMargin.toLocaleString('id-ID')}, Records used: ${filtered.length}`);
       if (totalMargin === 0) {
         elements.marginTotal.innerHTML = `<strong>Rp 0</strong> total`;
       } else {
@@ -5623,6 +5702,12 @@ const bootstrap = async () => {
     return;
   }
 
+  // Log userType saat bootstrap dimulai
+  const userType = getUserType();
+  console.log('=== DASHBOARD BOOTSTRAP ===');
+  console.log('UserType dari sessionStorage:', userType);
+  console.log('SessionStorage userType:', sessionStorage.getItem('userType'));
+
   try {
     // Load data dari Google Sheets (ONLINE)
     let dataLoaded = false;
@@ -5642,8 +5727,30 @@ const bootstrap = async () => {
     // Assign records ke window.records agar bisa diakses oleh fungsi getAvailableStores
     window.records = records;
     console.log('window.records assigned:', window.records ? window.records.length : 0, 'records');
+    
+    // Analisis data berdasarkan company type
     if (window.records && window.records.length > 0) {
+      const companyTypeCounts = { LKM: 0, NUMETA: 0, LBM: 0, Other: 0 };
+      window.records.forEach(record => {
+        const unit = getBusinessUnit(record.doType);
+        if (unit === 'LKM') companyTypeCounts.LKM++;
+        else if (unit === 'NUMETA') companyTypeCounts.NUMETA++;
+        else if (unit === 'LBM') companyTypeCounts.LBM++;
+        else companyTypeCounts.Other++;
+      });
+      console.log('=== DATA ANALYSIS BY COMPANY TYPE ===');
+      console.log('Total records:', window.records.length);
+      console.log('LKM records:', companyTypeCounts.LKM);
+      console.log('NUMETA records:', companyTypeCounts.NUMETA);
+      console.log('LBM records:', companyTypeCounts.LBM);
+      console.log('Other records:', companyTypeCounts.Other);
+      console.log('Expected userType:', userType);
+      console.log('Expected records for this userType:', companyTypeCounts[userType] || 0);
+      
+      // Sample records untuk debugging
       console.log('Sample record:', window.records[0]);
+      console.log('Sample record doType:', window.records[0].doType);
+      console.log('Sample record unit:', getBusinessUnit(window.records[0].doType));
       console.log('Sample record has store field:', !!window.records[0].store);
       console.log('Sample record store value:', window.records[0].store);
       console.log('Sample record has qtyAwb field:', !!window.records[0].qtyAwb);
@@ -5684,12 +5791,25 @@ const bootstrap = async () => {
       breakdownLegend: document.getElementById('breakdownLegend'),
     };
 
-    // Set default filter Unit Bisnis ke LKM
-    filters.subCategory = 'LKM';
+    // Set default filter Unit Bisnis berdasarkan userType dari sessionStorage
+    // userType sudah didefinisikan di awal fungsi bootstrap
+    filters.subCategory = userType;
 
     // Initialize display mode dan color palette dengan validasi
     displayMode = elements.displayMode ? (elements.displayMode.value || 'light') : 'light';
-    const paletteId = elements.colorPalette ? (elements.colorPalette.value || '1') : '1';
+
+    // Jika user NUMETA, default color palette ke 4 (Palette 4) saat pertama kali load
+    let paletteId = '1';
+    if (elements.colorPalette) {
+      if (userType === 'NUMETA') {
+        elements.colorPalette.value = '4';
+        paletteId = '4';
+      } else {
+        paletteId = elements.colorPalette.value || '1';
+      }
+    } else {
+      paletteId = '1';
+    }
 
     // Pastikan chartColors selalu valid (wallpaper menggunakan light palette)
     const modeForPalette = displayMode === 'wallpaper' ? 'light' : displayMode;

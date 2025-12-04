@@ -11,8 +11,8 @@
     <main class="dashboard">
       <header class="dashboard-header">
         <div>
-          <h1>SALES REPORT LKM</h1>
-          <p class="company-name">Luzie Kreatif Mandiri</p>
+          <h1 id="dashboardTitle">SALES REPORT</h1>
+          <p class="company-name" id="companyName">Luzie Kreatif Mandiri</p>
         </div>
         <div style="display: flex; gap: 10px;">
           <button id="refreshBtn" class="refresh-btn" title="Refresh data dari Google Sheets">
@@ -34,12 +34,6 @@
           <label for="revenueType">Markeplace/Kemitraan</label>
           <select id="revenueType">
             <option value="All">All</option>
-          </select>
-        </div>
-        <div class="filter" style="display: none;">
-          <label for="subCategory">Unit Bisnis</label>
-          <select id="subCategory">
-            <option value="LKM">LKM</option>
           </select>
         </div>
         <input type="hidden" id="startDate" />
@@ -270,6 +264,33 @@
       if (sessionStorage.getItem('isLoggedIn') !== 'true') {
         window.location.href = 'login.html';
       }
+      
+      // Update title berdasarkan userType setelah DOM ready
+      document.addEventListener('DOMContentLoaded', function() {
+        const userType = sessionStorage.getItem('userType') || 'LKM';
+        console.log('UserType dari sessionStorage:', userType);
+        
+        const dashboardTitle = document.getElementById('dashboardTitle');
+        const companyName = document.getElementById('companyName');
+        
+        if (dashboardTitle) {
+          if (userType === 'NUMETA') {
+            dashboardTitle.textContent = 'SALES REPORT NUMETA';
+            if (companyName) {
+              companyName.textContent = 'NUMETA';
+            }
+            console.log('Dashboard title diubah ke NUMETA');
+          } else {
+            dashboardTitle.textContent = 'SALES REPORT LKM';
+            if (companyName) {
+              companyName.textContent = 'Luzie Kreatif Mandiri';
+            }
+            console.log('Dashboard title diubah ke LKM');
+          }
+        } else {
+          console.warn('Element dashboardTitle tidak ditemukan');
+        }
+      });
     </script>
     <script src="app.js"></script>
   </body>
