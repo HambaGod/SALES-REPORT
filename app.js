@@ -1,5 +1,5 @@
 // ===== KONFIGURASI GOOGLE SHEETS =====
-// URL yang sudah di-publish dari Google Sheets (3 sumber data)
+// URL yang sudah di-publish dari Google Sheets (4 sumber data)
 const GOOGLE_SHEETS_URLS = [
   {
     name: 'Oktober',
@@ -22,36 +22,28 @@ const GOOGLE_SHEETS_URLS = [
 // ===== KONFIGURASI GOOGLE SHEETS RETUR =====
 // URL retur untuk setiap bulan (hanya bulan yang memiliki data retur)
 const RETUR_SHEETS_URLS = {
-  // Oktober: logika khusus (kolom X, filter kolom C sesuai userType)
-  '2025-10': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSX2lc2z97Z-EspZGqZn98Pk5BLlLa5bjeTdUoncvaOCBrRqIsHBW3OcFJesV1uOzADKaf_dAmsa_on/pub?gid=2023930332&single=true&output=csv',
-  // November: logika standar (kolom Y, filter kolom D sesuai userType)
-  '2025-11': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS6hIfTqlz0foN93TERhgrI635-GTHlnh2uYKyVNi3E2yYta0tYMzwpaAzaC0L834-sPxkTHTCxWUDT/pub?gid=2023930332&single=true&output=csv'
+  '2025-10': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTKcsgwf2YsGwnkDKQwfkNpC_kMUCxqIY5FDFl3uNpLOihk7h3m9WBipHmJVOJggvw0ZP4vWYQTtQIQ/pub?output=csv',
+  '2025-11': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTKcsgwf2YsGwnkDKQwfkNpC_kMUCxqIY5FDFl3uNpLOihk7h3m9WBipHmJVOJggvw0ZP4vWYQTtQIQ/pub?output=csv',
+  '2025-12': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSu-GPte7WTX7prk0DMEPj9U0fCx8TZrhhD32npDwJrpJ_SIgbfOgo5YV3HAgFnnTjGQio3UWOs_EgL/pub?gid=2023930332&single=true&output=csv'
 };
 
-// ===== KONFIGURASI GOOGLE SHEETS BUDGET IKLAN =====
+// ===== KONFIGURASI BUDGET IKLAN =====
 // URL default budget iklan (jika monthKey belum punya URL spesifik)
 const BUDGET_IKLAN_URL_LKM = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTKcsgwf2YsGwnkDKQwfkNpC_kMUCxqIY5FDFl3uNpLOihk7h3m9WBipHmJVOJggvw0ZP4vWYQTtQIQ/pub?output=csv';
-const BUDGET_IKLAN_URL_NUMETA = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTKcsgwf2YsGwnkDKQwfkNpC_kMUCxqIY5FDFl3uNpLOihk7h3m9WBipHmJVOJggvw0ZP4vWYQTtQIQ/pub?output=csv'; // TODO: Ganti dengan URL NUMETA yang sebenarnya
+const BUDGET_IKLAN_URL_NUMETA = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQsFmsdf-SyrepTVQHgtetHOQ4RRApqYOWFUp4vN5Qu1J_21OlILYVzhfEkjHQ8HYitR6ul7Sksgq8W/pub?gid=0&single=true&output=csv';
 
 // URL budget iklan per bulan untuk LKM (format warehouse: TANGGAL, MARKETPLACE, PRODUK, TOTAL BIAYA IKLAN)
 const BUDGET_IKLAN_URLS_LKM = {
-  // Oktober 2025
-  '2025-10':
-    'https://docs.google.com/spreadsheets/d/e/2PACX-1vRM4Diwo8TCXyfXm2v2LwYZ1spYmTllCJ8EI9w-jYOnLO32FfCsvhOWngQ8Qf12AlU3KKYoMoO_HUxM/pub?gid=0&single=true&output=csv',
-  // November 2025
-  '2025-11':
-    'https://docs.google.com/spreadsheets/d/e/2PACX-1vTKcsgwf2YsGwnkDKQwfkNpC_kMUCxqIY5FDFl3uNpLOihk7h3m9WBipHmJVOJggvw0ZP4vWYQTtQIQ/pub?output=csv',
-  // Desember 2025
-  '2025-12':
-    'https://docs.google.com/spreadsheets/d/e/2PACX-1vTe4NHwKCvXPnSx7xQES2CzR2N2ph1QV95h073rg3Q7ul7yDytec9d3f0v-vByddjLMhbI0aCJLQei0/pub?gid=0&single=true&output=csv',
+  '2025-10': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRM4Diwo8TCXyfXm2v2LwYZ1spYmTllCJ8EI9w-jYOnLO32FfCsvhOWngQ8Qf12AlU3KKYoMoO_HUxM/pub?gid=0&single=true&output=csv',
+  '2025-11': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTKcsgwf2YsGwnkDKQwfkNpC_kMUCxqIY5FDFl3uNpLOihk7h3m9WBipHmJVOJggvw0ZP4vWYQTtQIQ/pub?output=csv',
+  '2025-12': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTe4NHwKCvXPnSx7xQES2CzR2N2ph1QV95h073rg3Q7ul7yDytec9d3f0v-vByddjLMhbI0aCJLQei0/pub?gid=0&single=true&output=csv'
 };
 
 // URL budget iklan per bulan untuk NUMETA (format warehouse: TANGGAL, MARKETPLACE, PRODUK, TOTAL BIAYA IKLAN)
 const BUDGET_IKLAN_URLS_NUMETA = {
-  // Oktober 2025
-  '2025-10': '', // TODO: Isi dengan URL NUMETA untuk Oktober
-  // November 2025
+  '2025-10': '',
   '2025-11': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQsFmsdf-SyrepTVQHgtetHOQ4RRApqYOWFUp4vN5Qu1J_21OlILYVzhfEkjHQ8HYitR6ul7Sksgq8W/pub?gid=0&single=true&output=csv',
+  '2025-12': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR6v5vERNRMiOMXyy_kQbWkfR2l7QXJ7C-BkkbNM46i4S14xDx4GrYFVhcAJ7_D-bX_eSihXlEwPaeC/pub?gid=0&single=true&output=csv'
 };
 
 // ===== FUNGSI UNTUK FETCH DATA DARI SATU URL =====
