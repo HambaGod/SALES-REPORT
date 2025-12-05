@@ -23,7 +23,7 @@ const GOOGLE_SHEETS_URLS = [
 // URL retur untuk setiap bulan (hanya bulan yang memiliki data retur)
 const RETUR_SHEETS_URLS = {
   '2025-10': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTKcsgwf2YsGwnkDKQwfkNpC_kMUCxqIY5FDFl3uNpLOihk7h3m9WBipHmJVOJggvw0ZP4vWYQTtQIQ/pub?output=csv',
-  '2025-11': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTKcsgwf2YsGwnkDKQwfkNpC_kMUCxqIY5FDFl3uNpLOihk7h3m9WBipHmJVOJggvw0ZP4vWYQTtQIQ/pub?output=csv',
+  '2025-11': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS6hIfTqlz0foN93TERhgrI635-GTHlnh2uYKyVNi3E2yYta0tYMzwpaAzaC0L834-sPxkTHTCxWUDT/pub?gid=2023930332&single=true&output=csv',
   '2025-12': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSu-GPte7WTX7prk0DMEPj9U0fCx8TZrhhD32npDwJrpJ_SIgbfOgo5YV3HAgFnnTjGQio3UWOs_EgL/pub?gid=2023930332&single=true&output=csv'
 };
 
@@ -418,43 +418,52 @@ const fetchReturData = async (monthKey = null, marketplaceFilter = 'All') => {
         console.log(`Total headers found: ${headers.length}`);
         console.log(`Headers (index 25-35):`, headers.slice(25, 36));
         
-        // Cari berdasarkan nama header 'RTS BARANG MKT' atau 'RETUR BARANG MKT'
+        // Debug: Cari semua kolom yang mengandung "RTS" atau "BARANG"
+        const rtsHeaders = [];
+        headers.forEach((h, idx) => {
+          if (h && (h.toUpperCase().includes('RTS') || h.toUpperCase().includes('BARANG'))) {
+            rtsHeaders.push({ index: idx, name: h });
+          }
+        });
+        console.log(`Kolom yang mengandung "RTS" atau "BARANG":`, rtsHeaders);
+        
+        // STRATEGI 1: Cari berdasarkan nama header 'RTS BARANG MKT' atau 'RETUR BARANG MKT'
         const possibleNames = ['RTS BARANG MKT', 'Rts Barang Mkt', 'rts barang mkt', 'RTS BARANG MKT ', 'Rts Barang Mkt', 'RETUR BARANG MKT', 'Retur Barang MKT', 'retur barang mkt'];
         for (let i = 0; i < headers.length; i++) {
           const headerName = headers[i] ? headers[i].trim() : '';
           if (headerName && possibleNames.some(name => headerName.toUpperCase().includes(name.toUpperCase()))) {
             columnAFIndex = i;
             columnAFName = headers[i];
-            console.log(`✓ Kolom AF ditemukan di index ${i} dengan nama: "${headerName}"`);
+            console.log(`✓ Strategi 1: Kolom AF ditemukan di index ${i} dengan nama: "${headerName}"`);
             break;
           }
         }
         
-        // Fallback: jika tidak ditemukan berdasarkan nama, coba index 31 (jika ada)
-        if (columnAFIndex === -1 && headers.length > 31) {
-          columnAFIndex = 31;
-          columnAFName = headers[31] || 'Column AF';
-          console.log(`⚠ Kolom AF tidak ditemukan berdasarkan nama, menggunakan index 31: "${columnAFName}"`);
-        }
-        
-        // Jika masih tidak ditemukan, gunakan pendekatan mencari kolom dengan data SUKUMBA
+        // STRATEGI 2: Jika tidak ditemukan, scan data untuk menemukan kolom yang berisi "SUKUMBA"
         if (columnAFIndex === -1) {
-          console.warn(`⚠ Kolom AF tidak ditemukan di headers. Mencoba mencari kolom dengan data "SUKUMBA"...`);
-          // Cek beberapa baris pertama untuk menemukan kolom yang berisi "SUKUMBA"
+          console.warn(`⚠ Strategi 1 gagal. Mencoba Strategi 2: scan data untuk menemukan kolom dengan "SUKUMBA"...`);
+          // Cek 50 baris pertama untuk menemukan kolom yang berisi "SUKUMBA"
           for (let colIdx = 0; colIdx < headers.length; colIdx++) {
             let foundSukumba = false;
-            for (let rowIdx = 0; rowIdx < Math.min(10, rows.length); rowIdx++) {
+            for (let rowIdx = 0; rowIdx < Math.min(50, rows.length); rowIdx++) {
               const cellValue = rows[rowIdx][headers[colIdx]];
               if (cellValue && String(cellValue).toUpperCase().includes('SUKUMBA')) {
                 columnAFIndex = colIdx;
-                columnAFName = headers[colIdx];
+                columnAFName = headers[colIdx] || `Column ${String.fromCharCode(65 + (colIdx % 26))}`;
                 foundSukumba = true;
-                console.log(`✓ Kolom dengan data "SUKUMBA" ditemukan di index ${colIdx} dengan header: "${headers[colIdx]}"`);
+                console.log(`✓ Strategi 2: Kolom dengan data "SUKUMBA" ditemukan di index ${colIdx} dengan header: "${headers[colIdx] || '(kosong)'}"`);
                 break;
               }
             }
             if (foundSukumba) break;
           }
+        }
+        
+        // STRATEGI 3 (Fallback terakhir): Gunakan index 31 jika semua strategi gagal
+        if (columnAFIndex === -1 && headers.length > 31) {
+          columnAFIndex = 31;
+          columnAFName = headers[31] || 'Column AF';
+          console.log(`⚠ Strategi 2 gagal. Strategi 3: Menggunakan index 31 (fallback): "${columnAFName}"`);
         }
       }
 
