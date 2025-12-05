@@ -672,12 +672,34 @@ const fetchBudgetIklanData = async (monthKey = null, marketplaceFilter = 'All') 
     }
 
     const csvText = await response.text();
-    const rows = parseCSV(csvText);
+    let rows = parseCSV(csvText);
 
     if (!rows || rows.length === 0) {
       console.log('Tidak ada data budget iklan');
       return { total: 0, byMarketplace: {}, byDateAndProduk: {} };
     }
+    
+    // Filter out rows yang bukan data (header tambahan, baris kosong, dll)
+    // Hanya ambil baris yang kolom pertama (TANGGAL) berisi tanggal yang valid
+    const validRows = rows.filter((row, index) => {
+      const headers = Object.keys(row);
+      if (headers.length === 0) return false;
+      
+      const tanggalValue = row[headers[0]];
+      if (!tanggalValue) return false;
+      
+      // Cek apakah tanggal berisi format tanggal yang valid (contoh: "1 Nov 2025", "1 Dec 2025")
+      const isValidDate = /^\d{1,2}\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{4}$/i.test(tanggalValue);
+      
+      if (index < 5) {
+        console.log(`  Filter Row ${index}: Tanggal="${tanggalValue}", isValidDate=${isValidDate}`);
+      }
+      
+      return isValidDate;
+    });
+    
+    console.log(`Filtered ${rows.length} rows → ${validRows.length} valid data rows`);
+    rows = validRows;
 
     // Helper function untuk parse tanggal
     const parseDate = (dateStr) => {
@@ -700,8 +722,8 @@ const fetchBudgetIklanData = async (monthKey = null, marketplaceFilter = 'All') 
     // Helper function untuk convert ke number
     const toNumber = (value) => {
       if (value === null || value === undefined || value === '') return 0;
-      // Handle format dengan koma (contoh: "44,521" atau "1,234,567")
-      const cleaned = String(value).replace(/,/g, '');
+      // Handle format dengan koma dan quotes (contoh: "44,521" atau "1,234,567" atau 44521)
+      const cleaned = String(value).replace(/[",]/g, ''); // Hapus koma DAN quotes
       const num = parseFloat(cleaned);
       return isNaN(num) ? 0 : num;
     };
@@ -710,6 +732,13 @@ const fetchBudgetIklanData = async (monthKey = null, marketplaceFilter = 'All') 
     const headers = rows.length > 0 ? Object.keys(rows[0]) : [];
     console.log('Budget Iklan Headers:', headers);
     console.log('Budget Iklan Sample Row:', rows[0]);
+    console.log('Budget Iklan Total Rows:', rows.length);
+    
+    // Debug: Tampilkan 5 baris pertama untuk troubleshooting
+    console.log('Budget Iklan First 5 Rows:');
+    rows.slice(0, 5).forEach((row, idx) => {
+      console.log(`  Row ${idx}:`, row);
+    });
 
     // Karena header CSV ter-split multi-line, kita gunakan indeks langsung
     // Kolom A = TANGGAL, Kolom B = MARKETPLACE, Kolom C = PRODUK, Kolom D = TOTAL BIAYA IKLAN
@@ -738,8 +767,17 @@ const fetchBudgetIklanData = async (monthKey = null, marketplaceFilter = 'All') 
         console.log(`Row ${index + 1}: Tanggal="${tanggalStr}", Marketplace="${marketplace}", Produk="${produk}", Total=${totalBiaya}`);
       }
 
-      // Skip jika tidak ada tanggal atau marketplace
-      if (!tanggalStr || !marketplace) {
+      // Skip jika tidak ada tanggal atau marketplace, atau tanggal = "null"
+      if (!tanggalStr || !marketplace || tanggalStr === 'null' || marketplace === 'null') {
+        skippedRows++;
+        return;
+      }
+      
+      // Skip jika tanggal mengandung kata-kata header (BIAYA, PPN, LEADS, Dashboard, dll)
+      const tanggalUpper = tanggalStr.toUpperCase();
+      if (tanggalUpper.includes('BIAYA') || tanggalUpper.includes('PPN') || 
+          tanggalUpper.includes('LEADS') || tanggalUpper.includes('DASHBOARD') ||
+          tanggalUpper.includes('TANGGAL')) {
         skippedRows++;
         return;
       }
