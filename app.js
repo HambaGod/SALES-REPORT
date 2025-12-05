@@ -159,7 +159,8 @@ const fetchReturData = async (monthKey = null, marketplaceFilter = 'All') => {
       throw new Error('Data CSV Retur kosong');
     }
 
-    const rows = parseCSV(csvText);
+    // Parse CSV dengan minimal 32 kolom (sampai Column AF) untuk memastikan kolom NUMETA terbaca meskipun header kosong
+    const rows = parseCSV(csvText, 32);
     console.log(`Data Retur berhasil di-parse: ${rows.length} rows`);
 
     if (rows.length === 0) {
@@ -329,10 +330,10 @@ const fetchReturData = async (monthKey = null, marketplaceFilter = 'All') => {
 
               // Simpan record untuk chart dan tabel (dengan data lengkap untuk AWB RTS)
               const dateValue = dateColumnName ? parseDate(row[dateColumnName]) : null;
-              
+
               // Ambil kolom B (Nama CS) untuk filter toko
               const namaCS = columnBName ? (row[columnBName] || '') : '';
-              
+
               // Ambil kolom Q (Tracking ID) untuk AWB
               // Kolom Q = index 16 (A=0, B=1, ..., Q=16)
               let trackingID = '';
@@ -350,7 +351,7 @@ const fetchReturData = async (monthKey = null, marketplaceFilter = 'All') => {
                   }
                 }
               }
-              
+
               // Ambil kolom X (PENYESUAIAN RTS) untuk RTS (Oktober menggunakan kolom X)
               // Kolom X = index 23 (A=0, B=1, ..., X=23)
               let penyesuaianRTS = '';
@@ -370,7 +371,7 @@ const fetchReturData = async (monthKey = null, marketplaceFilter = 'All') => {
                   }
                 }
               }
-              
+
               if (dateValue) {
                 returRecords.push({
                   date: dateValue,
@@ -391,25 +392,76 @@ const fetchReturData = async (monthKey = null, marketplaceFilter = 'All') => {
       console.log(`Total Retur/RTS Oktober: ${total.toLocaleString('id-ID')} (dari ${rows.length} baris, ${count} baris dengan nilai, ${skipped} baris di-skip, filter marketplace: ${marketplaceFilter})`);
       return { total, records: returRecords };
     } else {
-      // LOGIKA NOVEMBER+: Total kolom Y, jika kolom D sesuai userType dan kolom B sesuai marketplace filter
+      // LOGIKA NOVEMBER+: Total kolom Y, jika kolom D (LKM) atau kolom AF (RETUR BARANG MKT) mengandung "SUKUMBA" (untuk user NUMETA) dan kolom B sesuai marketplace filter
       const userTypeForLog = getUserType().toUpperCase();
-      console.log(`Menggunakan logika November+: kolom Y, filter kolom D = "${userTypeForLog}", filter kolom B = marketplace`);
+      const isNumeta = userTypeForLog === 'NUMETA';
+      console.log(`Menggunakan logika November+: kolom Y, filter ${isNumeta ? 'kolom AF (RTS BARANG MKT) mengandung "SUKUMBA"' : 'kolom D = "' + userTypeForLog + '"'}, filter kolom B = marketplace`);
 
-      // Cari kolom D (index 3) = "Lini Bisnis"
+      // Cari kolom D (index 3) = "Lini Bisnis" (untuk LKM)
       let columnDIndex = -1;
       let columnDName = '';
-      if (headers.length > 3) {
-        columnDIndex = 3;
-        columnDName = headers[3];
-      } else {
-        // Coba cari berdasarkan nama
-        const possibleNames = ['Lini Bisnis', 'Lini bisnis', 'lini bisnis', 'LINI BISNIS'];
+      if (!isNumeta) {
+        if (headers.length > 3) {
+          columnDIndex = 3;
+          columnDName = headers[3];
+        } else {
+          // Coba cari berdasarkan nama
+          const possibleNames = ['Lini Bisnis', 'Lini bisnis', 'lini bisnis', 'LINI BISNIS'];
+          for (let i = 0; i < headers.length; i++) {
+            const headerName = headers[i] ? headers[i].trim() : '';
+            if (possibleNames.some(name => headerName.toUpperCase() === name.toUpperCase())) {
+              columnDIndex = i;
+              columnDName = headers[i];
+              break;
+            }
+          }
+        }
+      }
+
+      // Cari kolom AF untuk NUMETA berdasarkan header 'RTS BARANG MKT'
+      let columnAFIndex = -1;
+      let columnAFName = '';
+      if (isNumeta) {
+        // Debug: Log semua headers untuk troubleshooting
+        console.log(`Total headers found: ${headers.length}`);
+        console.log(`Headers (index 25-35):`, headers.slice(25, 36));
+        
+        // Cari berdasarkan nama header 'RTS BARANG MKT' atau 'RETUR BARANG MKT'
+        const possibleNames = ['RTS BARANG MKT', 'Rts Barang Mkt', 'rts barang mkt', 'RTS BARANG MKT ', 'Rts Barang Mkt', 'RETUR BARANG MKT', 'Retur Barang MKT', 'retur barang mkt'];
         for (let i = 0; i < headers.length; i++) {
           const headerName = headers[i] ? headers[i].trim() : '';
-          if (possibleNames.some(name => headerName.toUpperCase() === name.toUpperCase())) {
-            columnDIndex = i;
-            columnDName = headers[i];
+          if (headerName && possibleNames.some(name => headerName.toUpperCase().includes(name.toUpperCase()))) {
+            columnAFIndex = i;
+            columnAFName = headers[i];
+            console.log(`✓ Kolom AF ditemukan di index ${i} dengan nama: "${headerName}"`);
             break;
+          }
+        }
+        
+        // Fallback: jika tidak ditemukan berdasarkan nama, coba index 31 (jika ada)
+        if (columnAFIndex === -1 && headers.length > 31) {
+          columnAFIndex = 31;
+          columnAFName = headers[31] || 'Column AF';
+          console.log(`⚠ Kolom AF tidak ditemukan berdasarkan nama, menggunakan index 31: "${columnAFName}"`);
+        }
+        
+        // Jika masih tidak ditemukan, gunakan pendekatan mencari kolom dengan data SUKUMBA
+        if (columnAFIndex === -1) {
+          console.warn(`⚠ Kolom AF tidak ditemukan di headers. Mencoba mencari kolom dengan data "SUKUMBA"...`);
+          // Cek beberapa baris pertama untuk menemukan kolom yang berisi "SUKUMBA"
+          for (let colIdx = 0; colIdx < headers.length; colIdx++) {
+            let foundSukumba = false;
+            for (let rowIdx = 0; rowIdx < Math.min(10, rows.length); rowIdx++) {
+              const cellValue = rows[rowIdx][headers[colIdx]];
+              if (cellValue && String(cellValue).toUpperCase().includes('SUKUMBA')) {
+                columnAFIndex = colIdx;
+                columnAFName = headers[colIdx];
+                foundSukumba = true;
+                console.log(`✓ Kolom dengan data "SUKUMBA" ditemukan di index ${colIdx} dengan header: "${headers[colIdx]}"`);
+                break;
+              }
+            }
+            if (foundSukumba) break;
           }
         }
       }
@@ -439,8 +491,14 @@ const fetchReturData = async (monthKey = null, marketplaceFilter = 'All') => {
         dateColumnName = headers[0]; // Kolom A = index 0
       }
 
-      if (columnDIndex === -1 || !columnDName) {
-        console.warn('Kolom D (Lini Bisnis) tidak ditemukan. Headers:', headers);
+      // Validasi kolom berdasarkan userType
+      if (!isNumeta && (columnDIndex === -1 || !columnDName)) {
+        console.warn('Kolom D (Lini Bisnis) tidak ditemukan untuk LKM. Headers:', headers);
+        return { total: 0, records: [] };
+      }
+
+      if (isNumeta && (columnAFIndex === -1 || !columnAFName)) {
+        console.warn('Kolom AF tidak ditemukan untuk NUMETA. Headers:', headers);
         return { total: 0, records: [] };
       }
 
@@ -450,19 +508,33 @@ const fetchReturData = async (monthKey = null, marketplaceFilter = 'All') => {
       }
 
       console.log(`Kolom B ditemukan: "${columnBName}" (index ${columnBIndex})`);
-      console.log(`Kolom D (Lini Bisnis) ditemukan: "${columnDName}" (index ${columnDIndex})`);
+      if (isNumeta) {
+        console.log(`Kolom AF ditemukan: "${columnAFName}" (index ${columnAFIndex})`);
+      } else {
+        console.log(`Kolom D (Lini Bisnis) ditemukan: "${columnDName}" (index ${columnDIndex})`);
+      }
       console.log(`Kolom Y ditemukan: "${columnYName}" (index ${columnYIndex})`);
 
-      // Hitung total dari kolom Y, HANYA untuk baris yang kolom D sesuai userType dan kolom B sesuai filter
+      // Hitung total dari kolom Y, HANYA untuk baris yang sesuai filter
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
 
-        // Cek apakah kolom D sesuai dengan userType (LKM atau NUMETA)
-        const liniBisnis = row[columnDName];
-        const liniBisnisStr = liniBisnis ? String(liniBisnis).trim().toUpperCase() : '';
-        const userType = getUserType().toUpperCase();
+        // Cek filter berdasarkan userType
+        let matchesUserType = false;
+        if (isNumeta) {
+          // NUMETA: Kolom AF (RTS BARANG MKT) harus mengandung "SUKUMBA"
+          const kolomAFValue = row[columnAFName];
+          const kolomAFStr = kolomAFValue ? String(kolomAFValue).trim().toUpperCase() : '';
+          matchesUserType = kolomAFStr.includes('SUKUMBA');
+        } else {
+          // LKM: Kolom D harus sesuai userType
+          const liniBisnis = row[columnDName];
+          const liniBisnisStr = liniBisnis ? String(liniBisnis).trim().toUpperCase() : '';
+          const userType = getUserType().toUpperCase();
+          matchesUserType = liniBisnisStr === userType;
+        }
 
-        if (liniBisnisStr === userType) {
+        if (matchesUserType) {
           // Filter marketplace berdasarkan kolom B
           // Logika: Filter TikTok = kolom B mengandung "TIKTOK" ATAU "_T"
           //         Filter Shopee = kolom B mengandung "SHOPEE" ATAU "_S"
@@ -493,7 +565,7 @@ const fetchReturData = async (monthKey = null, marketplaceFilter = 'All') => {
           }
 
           if (shouldInclude) {
-            // Jika kolom D sesuai userType dan kolom B sesuai filter, jumlahkan kolom Y
+            // Jika filter userType (kolom D untuk LKM atau kolom AF (RTS BARANG MKT) mengandung "NUMETA" untuk NUMETA) dan kolom B sesuai filter, jumlahkan kolom Y
             const value = row[columnYName];
             const numValue = toNumber(value);
             total += numValue;
@@ -502,10 +574,10 @@ const fetchReturData = async (monthKey = null, marketplaceFilter = 'All') => {
 
               // Simpan record untuk chart dan tabel (dengan data lengkap untuk AWB RTS)
               const dateValue = dateColumnName ? parseDate(row[dateColumnName]) : null;
-              
+
               // Ambil kolom B (Nama CS) untuk filter toko
               const namaCS = columnBName ? (row[columnBName] || '') : '';
-              
+
               // Ambil kolom Q (Tracking ID) untuk AWB
               // Kolom Q = index 16 (A=0, B=1, ..., Q=16)
               let trackingID = '';
@@ -523,7 +595,7 @@ const fetchReturData = async (monthKey = null, marketplaceFilter = 'All') => {
                   }
                 }
               }
-              
+
               // Ambil kolom Y (PENYESUAIAN RTS) untuk RTS (November menggunakan kolom Y)
               // Kolom Y = index 24 (A=0, B=1, ..., Y=24)
               let penyesuaianRTS = '';
@@ -543,7 +615,7 @@ const fetchReturData = async (monthKey = null, marketplaceFilter = 'All') => {
                   }
                 }
               }
-              
+
               if (dateValue) {
                 returRecords.push({
                   date: dateValue,
@@ -580,11 +652,11 @@ const fetchBudgetIklanData = async (monthKey = null, marketplaceFilter = 'All') 
 
     // Ambil userType dari sessionStorage
     const userType = getUserType();
-    
+
     // Tentukan URL berdasarkan userType dan monthKey
     let budgetUrl = userType === 'NUMETA' ? BUDGET_IKLAN_URL_NUMETA : BUDGET_IKLAN_URL_LKM; // Default fallback
     const budgetUrls = userType === 'NUMETA' ? BUDGET_IKLAN_URLS_NUMETA : BUDGET_IKLAN_URLS_LKM;
-    
+
     if (monthKey && budgetUrls[monthKey]) {
       budgetUrl = budgetUrls[monthKey];
       console.log(`Menggunakan URL budget iklan ${userType} untuk ${monthKey}`);
@@ -704,19 +776,19 @@ const fetchBudgetIklanData = async (monthKey = null, marketplaceFilter = 'All') 
         byMarketplace[normalizedMarketplace] = 0;
       }
       byMarketplace[normalizedMarketplace] += totalBiaya;
-      
+
       // Aggregate per tanggal dan produk (untuk tabel harian)
       if (produk) {
         const day = date.getDate();
         const produkKey = produk.trim(); // Simpan produk asli (case-sensitive untuk matching dengan toko)
         const dateProdukKey = `${day}-${produkKey}`;
-        
+
         if (!byDateAndProduk[dateProdukKey]) {
           byDateAndProduk[dateProdukKey] = 0;
         }
         byDateAndProduk[dateProdukKey] += totalBiaya;
       }
-      
+
       totalBudget += totalBiaya;
       processedRows++;
 
@@ -736,12 +808,26 @@ const fetchBudgetIklanData = async (monthKey = null, marketplaceFilter = 'All') 
 };
 
 // ===== FUNGSI UNTUK PARSE CSV =====
-const parseCSV = (csvText) => {
+const parseCSV = (csvText, minColumns = 0) => {
   const lines = csvText.split('\n').filter(line => line.trim());
   if (lines.length === 0) return [];
 
   // Parse header
-  const headers = parseCSVLine(lines[0]);
+  let headers = parseCSVLine(lines[0]);
+
+  // Ensure minimum columns by padding headers with default names (Column A, Column B, etc.)
+  // Ini penting untuk menangani kasus di mana header file CSV lebih pendek dari data barisnya (misal kolom AF ada datanya tapi header kosong/terpotong)
+  if (minColumns > 0 && headers.length < minColumns) {
+    for (let i = headers.length; i < minColumns; i++) {
+      let col = '';
+      let num = i;
+      while (num >= 0) {
+        col = String.fromCharCode(65 + (num % 26)) + col;
+        num = Math.floor(num / 26) - 1;
+      }
+      headers.push(`Column ${col}`);
+    }
+  }
 
   // Log headers untuk debugging (hanya sekali saat pertama kali)
   if (!window.headersLogged) {
@@ -985,7 +1071,7 @@ const transformGoogleSheetsData = (rows) => {
         console.log('Column W parsed:', toNumber(row[allKeys[22]]));
       }
     }
-    
+
     // Debug: Log untuk beberapa record dengan Subsidi Ongkir > 0
     if (totalSubsidiOngkir > 0 && records.length < 10) {
       console.log(`✓ Record ${records.length}: totalSubsidiOngkir = ${totalSubsidiOngkir}, dari row['Subsidi Ongkir'] = ${row['Subsidi Ongkir']}`);
@@ -997,7 +1083,7 @@ const transformGoogleSheetsData = (rows) => {
     // Ambil RESI dari kolom G (RESI)
     const resi = row['RESI'] || row['Resi'] || row['resi'] || '';
     const hasResi = resi && String(resi).trim().length > 0;
-    
+
     // Ambil QTY AWB dari kolom M dengan header "Qty"
     // Prioritas 1: Cari header "Qty" atau variasi namanya
     let qtyAwb = 0;
@@ -1008,7 +1094,7 @@ const transformGoogleSheetsData = (rows) => {
         if (qtyAwb > 0) break; // Jika sudah dapat nilai > 0, gunakan itu
       }
     }
-    
+
     // Prioritas 2: Fallback ke index 12 (kolom M) jika header tidak ditemukan
     if (qtyAwb === 0 && headers.length > 12) {
       const columnMHeader = headers[12];
@@ -1017,18 +1103,18 @@ const transformGoogleSheetsData = (rows) => {
         qtyAwb = toNumber(qtyAwbValue);
       }
     }
-    
+
     // Debug untuk beberapa baris pertama
     if (records.length < 3) {
       console.log('=== QTY AWB DEBUG ===');
       console.log('Qty AWB value:', qtyAwb);
       console.log('Row Qty headers:', qtyHeaders.map(h => row[h]));
     }
-    
+
     // Ambil kolom "Nama CS" untuk toko/store (kolom C)
     // Kolom C berisi nama toko dengan suffix _T, _S, _L (contoh: HARMONIHERBAL_T, HEALNATURE_T)
     let storeName = '';
-    
+
     // Prioritas 1: Cari header "Nama CS" atau variasi namanya
     const namaCSHeaders = ['Nama CS', 'Nama cs', 'nama cs', 'NAMA CS', 'NamaCS', 'Nama_Cs'];
     for (const headerName of namaCSHeaders) {
@@ -1037,13 +1123,13 @@ const transformGoogleSheetsData = (rows) => {
         break;
       }
     }
-    
+
     // Prioritas 2: Fallback ke index 2 (kolom C) jika header tidak ditemukan
     if (!storeName && headers.length > 2) {
       const columnCHeader = headers[2];
       storeName = row[columnCHeader] ? String(row[columnCHeader]).trim() : '';
     }
-    
+
     // Debug untuk beberapa baris pertama
     if (records.length < 3) {
       console.log('=== DATA PARSING DEBUG ===');
@@ -1238,12 +1324,12 @@ const showError = (message) => {
     errorEl.id = 'error-message';
     document.body.appendChild(errorEl);
   }
-  
+
   // Update warna background berdasarkan color palette yang aktif SEBELUM set innerHTML
   // Pastikan chartColors sudah terdefinisi, jika belum gunakan warna default
   const errorColor = (chartColors && chartColors.length > 0) ? chartColors[0] : '#ff4444';
   console.log('Setting error message color to:', errorColor, 'from palette:', chartColors);
-  
+
   // Set warna background dengan !important agar override CSS
   errorEl.style.cssText = `
     position: fixed;
@@ -1259,7 +1345,7 @@ const showError = (message) => {
     max-width: 400px;
     display: block;
   `;
-  
+
   errorEl.innerHTML = `<div class="error-content"><strong>Error:</strong> ${message}</div>`;
 
   // Auto hide after 10 seconds
@@ -1380,7 +1466,7 @@ const getAvailableMonths = () => {
     const counts = monthUnitCount[monthKey];
     console.log(`${monthLabel}: LBM=${counts.LBM}, LKM=${counts.LKM}, NUMETA=${counts.NUMETA}, Other=${counts.Other}`);
   });
-  
+
   // Debug: Cek apakah Desember ada di records
   if (months.includes('2025-12')) {
     const desemberRecords = records.filter(r => {
@@ -1397,7 +1483,7 @@ const getAvailableMonths = () => {
         doTypeCount[doType] = (doTypeCount[doType] || 0) + 1;
       });
       console.log(`Distribusi doType Desember 2025:`, doTypeCount);
-      
+
       // Cek apakah ada yang mengandung "LKM" (bukan hanya startsWith)
       const lkmRecords = desemberRecords.filter(r => {
         const doType = (r.doType || '').toUpperCase();
@@ -1410,7 +1496,7 @@ const getAvailableMonths = () => {
           unit: getBusinessUnit(r.doType)
         })));
       }
-      
+
       console.log(`Sample Desember records (first 5):`, desemberRecords.slice(0, 5).map(r => ({
         date: new Date(r.orderTs).toISOString(),
         doType: r.doType,
@@ -1581,14 +1667,14 @@ const filterRecords = () => {
 
     return true;
   });
-  
+
   console.log('Total records setelah filter:', filtered.length);
   console.log('Sample filtered records (first 3):', filtered.slice(0, 3).map(r => ({
     doType: r.doType,
     unit: getBusinessUnit(r.doType),
     date: new Date(r.orderTs).toISOString()
   })));
-  
+
   return filtered;
 };
 
@@ -1637,7 +1723,7 @@ const aggregateLeadLag = (data, revenueType = 'All') => {
 
   // Total menggunakan omset
   const total = data.reduce((sum, row) => sum + (row.omset || 0), 0);
-  
+
   // Debug: Log jika total omset 0 tapi ada data
   if (total === 0 && data.length > 0) {
     console.warn('⚠️ WARNING: Total omset = 0 tapi ada data!');
@@ -1774,25 +1860,31 @@ const initDailyDataTable = (year, month) => {
 
   // Tentukan jumlah hari dalam bulan (otomatis sesuai bulan yang dipilih)
   const daysInMonth = new Date(year, month, 0).getDate();
-  const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 
-                      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+  const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 
   // Header nama toko sudah dihapus, tidak perlu update lagi
+
+  // Cek dark mode untuk menentukan warna
+  const isDarkMode = displayMode === 'dark';
+  const totalRowBg = isDarkMode ? '#3d3d3d' : '#f5f5f5';
+  const totalRowText = isDarkMode ? '#e0e0e0' : '#1f2b4a';
+  const borderColor = isDarkMode ? '#444' : '#e0e0e0';
 
   // Buat baris TOTAL di awal (sebelum baris tanggal)
   const totalRow = document.createElement('tr');
   totalRow.id = 'dailyDataTableTotalRow';
-  totalRow.style.cssText = 'background-color: #f5f5f5; font-weight: 700;';
-  
+  totalRow.style.cssText = `background-color: ${totalRowBg}; color: ${totalRowText}; font-weight: 700;`;
+
   // Style untuk kolom tanggal di baris total (sticky)
-  const totalDateCellStyle = `padding: 6px 8px; text-align: center; white-space: nowrap; position: sticky; left: 0; z-index: 5; background-color: #f5f5f5; border-right: 1px solid #e0e0e0; border-bottom: 2px solid #4caf50; font-weight: 700;`;
-  
+  const totalDateCellStyle = `padding: 6px 8px; text-align: center; white-space: nowrap; position: sticky; left: 0; z-index: 5; background-color: ${totalRowBg}; color: ${totalRowText}; border-right: 1px solid ${borderColor}; border-bottom: 2px solid #4caf50; font-weight: 700;`;
+
   // Style untuk sel lainnya di baris total
-  const totalCellStyle = `padding: 6px 8px; text-align: center; white-space: nowrap; border-right: 1px solid #e0e0e0; border-bottom: 2px solid #4caf50; font-weight: 700;`;
-  
+  const totalCellStyle = `padding: 6px 8px; text-align: center; white-space: nowrap; background-color: ${totalRowBg}; color: ${totalRowText}; border-right: 1px solid ${borderColor}; border-bottom: 2px solid #4caf50; font-weight: 700;`;
+
   // Style untuk kolom terakhir di baris total
-  const totalLastCellStyle = `padding: 6px 8px; text-align: center; white-space: nowrap; border-bottom: 2px solid #4caf50; font-weight: 700;`;
-  
+  const totalLastCellStyle = `padding: 6px 8px; text-align: center; white-space: nowrap; background-color: ${totalRowBg}; color: ${totalRowText}; border-bottom: 2px solid #4caf50; font-weight: 700;`;
+
   // Baris TOTAL - semua kolom akan diisi nanti oleh updateDailyDataTableData
   totalRow.innerHTML = `
     <td style="${totalDateCellStyle}">TOTAL</td>
@@ -1814,13 +1906,13 @@ const initDailyDataTable = (year, month) => {
     <td style="${totalCellStyle}"></td>
     <td style="${totalLastCellStyle}"></td>
   `;
-  
+
   tbody.appendChild(totalRow);
 
   // Buat baris data sesuai jumlah hari dalam bulan (28, 29, 30, atau 31)
   for (let day = 1; day <= daysInMonth; day++) {
     const row = document.createElement('tr');
-    
+
     // Tidak ada style khusus untuk baris terakhir
     const rowStyle = '';
 
@@ -1829,15 +1921,17 @@ const initDailyDataTable = (year, month) => {
     const dateStr = `${day} ${monthNames[month - 1].substring(0, 3)} ${year}`;
 
     // Style untuk kolom tanggal (harus terlihat penuh, lebih compact, dengan border grid abu-abu, sticky saat scroll horizontal)
-    // Background akan di-update sesuai color palette atau tetap putih
-    const dateCellBg = rowStyle.includes('background-color') ? '' : 'background-color: white;';
-    const dateCellStyle = `padding: 4px 8px; text-align: center; white-space: nowrap; position: sticky; left: 0; z-index: 5; border-right: 1px solid #e0e0e0; border-bottom: 1px solid #e0e0e0; ${dateCellBg} ${rowStyle}`;
-    
+    // Background akan di-update sesuai dark mode
+    const dateCellBg = isDarkMode ? '#3d3d3d' : '#f9f9f9';
+    const dateCellText = isDarkMode ? '#e0e0e0' : '#1f2b4a';
+    const dateCellStyle = `padding: 4px 8px; text-align: center; white-space: nowrap; position: sticky; left: 0; z-index: 5; background-color: ${dateCellBg}; color: ${dateCellText}; border-right: 1px solid ${borderColor}; border-bottom: 1px solid ${borderColor}; ${rowStyle}`;
+
     // Style dasar untuk sel lainnya (lebih compact, dengan border grid abu-abu)
-    const cellStyle = `padding: 4px 8px; text-align: center; white-space: nowrap; border-right: 1px solid #e0e0e0; border-bottom: 1px solid #e0e0e0; ${rowStyle}`;
-    
+    const cellText = isDarkMode ? '#e0e0e0' : '#1f2b4a';
+    const cellStyle = `padding: 4px 8px; text-align: center; white-space: nowrap; color: ${cellText}; border-right: 1px solid ${borderColor}; border-bottom: 1px solid ${borderColor}; ${rowStyle}`;
+
     // Style untuk kolom terakhir (tanpa border kanan)
-    const lastCellStyle = `padding: 4px 8px; text-align: center; white-space: nowrap; border-bottom: 1px solid #e0e0e0; ${rowStyle}`;
+    const lastCellStyle = `padding: 4px 8px; text-align: center; white-space: nowrap; color: ${cellText}; border-bottom: 1px solid ${borderColor}; ${rowStyle}`;
 
     // Kolom 1: TANGGAL (sudah terisi, harus terlihat penuh, sticky saat scroll horizontal)
     // Struktur kolom: TANGGAL, QTY AWB, QTY Pcs, AWB RTS, RTS, RTS (%), HARGA JUAL, Sub Ongkir, MARGIN, OMSET, OMSET BERSIH, BIAYA IKLAN, PROFIT, CPL, CAC, CPP, ROAS, ROI (%)
@@ -1874,11 +1968,92 @@ const initDailyDataTable = (year, month) => {
       updateStickyHeaders();
     }, 100);
   }
-  
+
   // Set sticky header
   updateStickyHeaders();
 
+  // Apply dark mode styling jika sedang dark mode
+  // Gunakan setTimeout untuk memastikan DOM sudah ter-render
+  setTimeout(() => {
+    applyDarkModeToTable();
+  }, 200);
+
   console.log(`Tabel data harian berhasil dibuat untuk ${monthNames[month - 1]} ${year} (${daysInMonth} baris)`);
+};
+
+// ===== FUNGSI UNTUK APPLY DARK MODE KE TABEL =====
+const applyDarkModeToTable = () => {
+  // Gunakan variabel global displayMode, bukan dari sessionStorage
+  const currentDisplayMode = displayMode || 'light';
+  const isDarkMode = currentDisplayMode === 'dark';
+
+  console.log('=== applyDarkModeToTable CALLED ===');
+  console.log('Display mode (global):', currentDisplayMode, 'isDarkMode:', isDarkMode);
+
+  if (!isDarkMode) {
+    console.log('Not dark mode, skipping...');
+    return; // Hanya apply jika dark mode
+  }
+
+  const dailyTable = document.getElementById('dailyDataTableContent');
+  if (!dailyTable) {
+    console.log('Tabel tidak ditemukan!');
+    return;
+  }
+
+  console.log('Tabel ditemukan, mulai apply dark mode styling...');
+
+  // Update border tabel menjadi abu-abu gelap (tidak terlalu kontras)
+  dailyTable.style.setProperty('border-color', '#444', 'important');
+
+  // Update semua cell borders menjadi abu-abu gelap (kecuali header yang sudah hijau)
+  const allCells = dailyTable.querySelectorAll('td, th');
+  console.log(`Found ${allCells.length} cells to update`);
+
+  allCells.forEach(cell => {
+    // Skip header row (sudah punya background hijau)
+    const isHeader = cell.tagName === 'TH';
+    if (!isHeader) {
+      // Set border langsung dengan setProperty (lebih reliable)
+      cell.style.setProperty('border-right', '1px solid #444', 'important');
+      cell.style.setProperty('border-bottom', '1px solid #444', 'important');
+    } else {
+      // Header tetap pakai border abu-abu gelap juga
+      cell.style.setProperty('border-right', '1px solid #444', 'important');
+      cell.style.setProperty('border-bottom', '1px solid #444', 'important');
+    }
+  });
+
+  // Update baris TOTAL - background gelap dengan text putih
+  const totalRow = document.getElementById('dailyDataTableTotalRow');
+  if (totalRow) {
+    console.log('Baris TOTAL ditemukan, update styling...');
+    totalRow.style.setProperty('background-color', '#3d3d3d', 'important');
+    totalRow.style.setProperty('color', '#e0e0e0', 'important');
+
+    // Update semua cell di baris TOTAL
+    const totalCells = totalRow.querySelectorAll('td');
+    totalCells.forEach(cell => {
+      cell.style.setProperty('background-color', '#3d3d3d', 'important');
+      cell.style.setProperty('color', '#e0e0e0', 'important');
+      cell.style.setProperty('border-right', '1px solid #444', 'important');
+      // Border bottom tetap hijau untuk TOTAL row
+      cell.style.setProperty('border-bottom', '2px solid #4caf50', 'important');
+    });
+  } else {
+    console.log('Baris TOTAL tidak ditemukan!');
+  }
+
+  // Update kolom TANGGAL - background gelap dengan text putih
+  const dateColumn = dailyTable.querySelectorAll('tbody tr td:first-child');
+  console.log(`Found ${dateColumn.length} date column cells to update`);
+
+  dateColumn.forEach(cell => {
+    cell.style.setProperty('background-color', '#3d3d3d', 'important');
+    cell.style.setProperty('color', '#e0e0e0', 'important');
+  });
+
+  console.log('Dark mode styling applied to table!');
 };
 
 // ===== FUNGSI UNTUK EXTRACT UNIQUE TOKO DARI DATA =====
@@ -1916,7 +2091,7 @@ const getAvailableStores = (marketplaceFilter) => {
   const stores = new Set();
   let recordsWithStore = 0;
   let recordsWithSuffix = 0;
-  
+
   filteredRecords.forEach((record, index) => {
     // Debug beberapa record pertama
     if (index < 5) {
@@ -1928,7 +2103,7 @@ const getAvailableStores = (marketplaceFilter) => {
         unit: getBusinessUnit(record.doType)
       });
     }
-    
+
     if (record.store && typeof record.store === 'string') {
       recordsWithStore++;
       const storeName = record.store.trim();
@@ -1948,7 +2123,7 @@ const getAvailableStores = (marketplaceFilter) => {
 
   const result = Array.from(stores).sort();
   console.log(`Daftar toko yang ditemukan:`, result);
-  
+
   return result;
 };
 
@@ -1956,7 +2131,7 @@ const getAvailableStores = (marketplaceFilter) => {
 const updateStickyHeaders = () => {
   const columnHeaders = document.querySelectorAll('#dailyDataTableContent thead tr th');
   const thead = document.querySelector('#dailyDataTableContent thead');
-  
+
   if (columnHeaders.length > 0) {
     // Pastikan thead juga sticky
     if (thead) {
@@ -1964,12 +2139,12 @@ const updateStickyHeaders = () => {
       thead.style.top = '0';
       thead.style.zIndex = '10';
     }
-    
+
     // Set semua header kolom sticky dengan top position 0
     columnHeaders.forEach((header, index) => {
       header.style.position = 'sticky';
       header.style.top = '0';
-      
+
       // Kolom pertama (TANGGAL) juga sticky saat scroll horizontal
       if (index === 0) {
         header.style.left = '0';
@@ -1981,7 +2156,7 @@ const updateStickyHeaders = () => {
       } else {
         header.style.zIndex = '11'; // Pastikan di atas konten
       }
-      
+
       // Pastikan background solid
       if (!header.style.backgroundColor || header.style.backgroundColor === 'transparent') {
         // Jika belum ada background, set dari chartColors
@@ -1990,13 +2165,13 @@ const updateStickyHeaders = () => {
         }
       }
     });
-    
+
     // Pastikan semua sel di kolom TANGGAL juga sticky horizontal
     const tbody = document.getElementById('dailyDataTableBody');
     if (tbody) {
       tbody.style.position = 'relative';
       tbody.style.zIndex = '1';
-      
+
       // Update semua sel pertama (kolom TANGGAL) di tbody
       const dateCells = tbody.querySelectorAll('tr td:first-child');
       dateCells.forEach((cell) => {
@@ -2017,7 +2192,7 @@ const updateStickyHeaders = () => {
       });
     }
   }
-  
+
   if (columnHeaders.length > 0) {
     // Pastikan thead juga sticky
     if (thead) {
@@ -2025,12 +2200,12 @@ const updateStickyHeaders = () => {
       thead.style.top = '0';
       thead.style.zIndex = '1000';
     }
-    
+
     // Set semua header kolom sticky dengan top position 0
     columnHeaders.forEach((header, index) => {
       header.style.position = 'sticky';
       header.style.top = '0';
-      
+
       // Kolom pertama (TANGGAL) juga sticky saat scroll horizontal
       if (index === 0) {
         header.style.left = '0';
@@ -2042,7 +2217,7 @@ const updateStickyHeaders = () => {
       } else {
         header.style.zIndex = '1001'; // Pastikan di atas konten
       }
-      
+
       // Pastikan background solid
       if (!header.style.backgroundColor || header.style.backgroundColor === 'transparent') {
         // Jika belum ada background, set dari chartColors
@@ -2051,13 +2226,13 @@ const updateStickyHeaders = () => {
         }
       }
     });
-    
+
     // Pastikan semua sel di kolom TANGGAL juga sticky horizontal
     const tbody = document.getElementById('dailyDataTableBody');
     if (tbody) {
       tbody.style.position = 'relative';
       tbody.style.zIndex = '1';
-      
+
       // Update semua sel pertama (kolom TANGGAL) di tbody
       const dateCells = tbody.querySelectorAll('tr td:first-child');
       dateCells.forEach((cell) => {
@@ -2084,12 +2259,12 @@ const updateStickyHeaders = () => {
 const updateStoreNameHeader = (storeName, year, month) => {
   // Simpan nama toko yang dipilih ke global state
   window.selectedStoreName = storeName || 'NAMA TOKO';
-  
+
   console.log(`=== UPDATE STORE NAME HEADER ===`);
   console.log(`Store name: ${storeName}`);
   console.log(`Year: ${year}, Month: ${month}`);
   console.log(`window.selectedStoreName set to: ${window.selectedStoreName}`);
-  
+
   // Update judul "Data Harian Toko" dengan nama toko yang dipilih
   const dailyDataTitle = document.getElementById('dailyDataTitle');
   if (dailyDataTitle) {
@@ -2099,7 +2274,7 @@ const updateStoreNameHeader = (storeName, year, month) => {
       dailyDataTitle.textContent = 'Data Harian Toko';
     }
   }
-  
+
   // Update tabel jika sudah ada
   if (year && month) {
     // Dapatkan filtered records dari updateDashboard untuk update tabel
@@ -2112,7 +2287,7 @@ const updateStoreNameHeader = (storeName, year, month) => {
       if (monthSelect && monthSelect.value) {
         const selectedValue = monthSelect.value;
         const [selectedYear, selectedMonth] = selectedValue.split('-').map(Number);
-        
+
         // Dapatkan filtered records dari window (jika ada) atau gunakan window.records
         // Tapi lebih baik kita panggil updateDashboard lagi untuk memastikan filtered records ter-update
         // Atau kita bisa langsung update tabel dengan window.records yang sudah difilter
@@ -2120,26 +2295,26 @@ const updateStoreNameHeader = (storeName, year, month) => {
           // Filter records berdasarkan marketplace dan bulan yang dipilih
           const revenueTypeSelect = document.getElementById('revenueType');
           const marketplaceFilter = revenueTypeSelect ? revenueTypeSelect.value : 'All';
-          
+
           // Filter berdasarkan marketplace dan bulan
           let filtered = window.records.filter(record => {
             if (!record.orderDate) return false;
             const orderDate = new Date(record.orderDate);
             const recordYear = orderDate.getFullYear();
             const recordMonth = orderDate.getMonth() + 1;
-            
+
             // Filter bulan
             if (recordYear !== selectedYear || recordMonth !== selectedMonth) {
               return false;
             }
-            
+
             // Filter marketplace jika bukan "All"
             if (marketplaceFilter && marketplaceFilter !== 'All') {
               // Filter berdasarkan store suffix
               if (!record.store) return false;
               const storeUpper = String(record.store).toUpperCase();
               const filterUpper = marketplaceFilter.toUpperCase();
-              
+
               if (filterUpper.includes('TIKTOK') || filterUpper === 'TIKTOK') {
                 if (!storeUpper.includes('_T')) return false;
               } else if (filterUpper.includes('SHOPEE') || filterUpper === 'SHOPEE') {
@@ -2148,10 +2323,10 @@ const updateStoreNameHeader = (storeName, year, month) => {
                 if (!storeUpper.includes('_L')) return false;
               }
             }
-            
+
             return true;
           });
-          
+
           // Update tabel dengan filtered records
           updateDailyDataTable(filtered, selectedYear, selectedMonth);
         }
@@ -2170,7 +2345,7 @@ const showStoreSelectionModal = (availableStores) => {
 
   // Ambil warna palette aktif
   const primaryColor = chartColors && chartColors.length > 0 ? chartColors[0] : '#BF1A1A';
-  
+
   // Helper function untuk convert hex to rgb
   const hexToRgb = (hex) => {
     const r = parseInt(hex.slice(1, 3), 16);
@@ -2178,7 +2353,7 @@ const showStoreSelectionModal = (availableStores) => {
     const b = parseInt(hex.slice(5, 7), 16);
     return { r, g, b };
   };
-  
+
   // Helper function untuk membuat warna lebih gelap
   const darkenColor = (hex, amount = 20) => {
     const rgb = hexToRgb(hex);
@@ -2218,7 +2393,7 @@ const showStoreSelectionModal = (availableStores) => {
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
     position: relative;
   `;
-  
+
   // Style scrollbar agar tidak memotong sudut
   const styleId = 'storeModalScrollbarStyle';
   if (!document.getElementById(styleId)) {
@@ -2256,7 +2431,7 @@ const showStoreSelectionModal = (availableStores) => {
     availableStores.forEach(store => {
       const storeButton = document.createElement('button');
       storeButton.textContent = store;
-      
+
       // Helper untuk convert hex to rgba
       const hexToRgba = (hex, alpha) => {
         const r = parseInt(hex.slice(1, 3), 16);
@@ -2264,7 +2439,7 @@ const showStoreSelectionModal = (availableStores) => {
         const b = parseInt(hex.slice(5, 7), 16);
         return `rgba(${r}, ${g}, ${b}, ${alpha})`;
       };
-      
+
       // Style default dengan warna palette dan bayangan 3D
       const shadowColor = hexToRgba(primaryColor, 0.3);
       storeButton.style.cssText = `
@@ -2280,13 +2455,13 @@ const showStoreSelectionModal = (availableStores) => {
         font-weight: 500;
         box-shadow: 0 4px 12px ${shadowColor}, 0 2px 4px ${hexToRgba(primaryColor, 0.2)};
       `;
-      
+
       storeButton.addEventListener('mouseenter', () => {
         storeButton.style.backgroundColor = darkenColor(primaryColor);
         storeButton.style.boxShadow = `0 6px 16px ${shadowColor}, 0 3px 6px ${hexToRgba(primaryColor, 0.3)}`;
         storeButton.style.transform = 'translateY(-2px)';
       });
-      
+
       storeButton.addEventListener('mouseleave', () => {
         storeButton.style.backgroundColor = primaryColor;
         storeButton.style.boxShadow = `0 4px 12px ${shadowColor}, 0 2px 4px ${hexToRgba(primaryColor, 0.2)}`;
@@ -2297,7 +2472,7 @@ const showStoreSelectionModal = (availableStores) => {
         // Set selectedStoreName terlebih dahulu
         window.selectedStoreName = store;
         console.log(`Toko dipilih: ${store}, window.selectedStoreName = ${window.selectedStoreName}`);
-        
+
         const monthSelect = document.getElementById('monthSelect');
         if (monthSelect && monthSelect.value) {
           const selectedValue = monthSelect.value;
@@ -2309,9 +2484,9 @@ const showStoreSelectionModal = (availableStores) => {
           const now = new Date();
           updateStoreNameHeader(store, now.getFullYear(), now.getMonth() + 1);
         }
-        
+
         modal.remove();
-        
+
         // Panggil updateDashboard untuk refresh semua data termasuk tabel
         if (typeof updateDashboard === 'function') {
           setTimeout(() => {
@@ -2369,7 +2544,7 @@ const showStoreSelectionModal = (availableStores) => {
 const updateDailyDataTable = (filteredRecords, year, month) => {
   // Inisialisasi tabel dengan tanggal
   initDailyDataTable(year, month);
-  
+
   // Tunggu sedikit agar DOM sudah ter-render
   setTimeout(() => {
     updateDailyDataTableData(filteredRecords, year, month);
@@ -2378,26 +2553,26 @@ const updateDailyDataTable = (filteredRecords, year, month) => {
 
 // ===== FUNGSI UNTUK UPDATE DATA TABEL HARIAN =====
 const updateDailyDataTableData = (filteredRecords, year, month) => {
-  
+
   // Pastikan ada data records
   if (!filteredRecords || !Array.isArray(filteredRecords) || filteredRecords.length === 0) {
     console.warn('Data filteredRecords belum tersedia untuk update tabel harian');
     return;
   }
-  
+
   // Pastikan toko sudah dipilih
   const selectedStore = window.selectedStoreName;
   if (!selectedStore || selectedStore === 'NAMA TOKO') {
     console.log('Toko belum dipilih, tabel akan kosong');
     return;
   }
-  
+
   // Debug: Tampilkan sample records untuk troubleshooting
   console.log('=== DEBUG UPDATE DAILY DATA TABLE ===');
   console.log('Total filtered records (sudah filter marketplace & bulan):', filteredRecords.length);
   console.log('Selected store:', selectedStore);
   console.log('Year:', year, 'Month:', month);
-  
+
   // Debug: Verifikasi bahwa data yang digunakan sesuai dengan bulan yang dipilih
   if (filteredRecords.length > 0) {
     const sampleDates = filteredRecords.slice(0, 5).map(r => {
@@ -2413,11 +2588,11 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
     console.log('Sample dates dari filtered records:', sampleDates);
     console.log(`✓ Data yang digunakan untuk tabel: ${month === 10 ? 'OKTOBER' : month === 11 ? 'NOVEMBER' : month === 9 ? 'SEPTEMBER' : `BULAN ${month}`} ${year}`);
   }
-  
+
   // Tampilkan sample store names dari filteredRecords
   const sampleStores = [...new Set(filteredRecords.slice(0, 50).map(r => r.store).filter(Boolean))];
   console.log('Sample store names dari filtered records (first 50):', sampleStores);
-  
+
   // Filter records berdasarkan toko yang dipilih (dari kolom C - Nama CS)
   // Logika: sama seperti box QTY AWB, tapi filter lagi berdasarkan toko
   const storeFilteredRecords = filteredRecords.filter(record => {
@@ -2426,13 +2601,13 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
     }
     const recordStore = String(record.store).trim();
     const selectedStoreTrimmed = String(selectedStore).trim();
-    
+
     // Case-insensitive comparison untuk lebih fleksibel
     const matches = recordStore.toLowerCase() === selectedStoreTrimmed.toLowerCase();
-    
+
     return matches;
   });
-  
+
   // Debug: Tampilkan sample records yang match
   if (storeFilteredRecords.length > 0) {
     console.log('Sample matched records (first 5):', storeFilteredRecords.slice(0, 5).map(r => ({
@@ -2447,7 +2622,7 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
       subsidiOngkirType: typeof r.subsidiOngkir,
       subsidiOngkirValue: Number(r.subsidiOngkir) || 0
     })));
-    
+
     // Debug: Cek apakah ada record dengan subsidiOngkir > 0
     const recordsWithSubOngkir = storeFilteredRecords.filter(r => {
       const subOngkir = Number(r.subsidiOngkir) || 0;
@@ -2462,21 +2637,21 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
       })));
     }
   }
-  
+
   console.log(`Filter toko "${selectedStore}": ${storeFilteredRecords.length} records ditemukan dari ${filteredRecords.length} filtered records`);
-  
+
   if (storeFilteredRecords.length === 0) {
     console.warn('Tidak ada records yang match dengan toko yang dipilih!');
     console.log('Mungkin nama toko tidak match. Cek console untuk sample store names.');
-    
+
     // Debug: Cek apakah ada store yang mirip
     const allStores = [...new Set(filteredRecords.map(r => r.store).filter(Boolean))];
     console.log('Semua store yang tersedia di filtered records:', allStores);
     console.log('Store yang dicari:', selectedStore);
-    
+
     return;
   }
-  
+
   // Hitung QTY AWB per tanggal
   // Logika sama persis dengan box QTY AWB: filtered.filter(record => record.resi !== null).length
   // Tapi kita group per tanggal dan filter berdasarkan toko
@@ -2503,32 +2678,32 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
   let totalHargaJual = 0;
   let totalMargin = 0;
   let totalSubOngkir = 0;
-  
+
   storeFilteredRecords.forEach(record => {
     if (!record.orderDate) {
       return;
     }
-    
+
     const orderDate = new Date(record.orderDate);
     if (isNaN(orderDate.getTime())) {
       return;
     }
-    
+
     const recordYear = orderDate.getFullYear();
     const recordMonth = orderDate.getMonth() + 1; // getMonth() returns 0-11
     const recordDay = orderDate.getDate();
-    
+
     // Filter berdasarkan tahun dan bulan yang dipilih (seharusnya sudah difilter, tapi double check)
     if (recordYear !== year || recordMonth !== month) {
       return;
     }
-    
+
     recordsInMonth++;
-    
+
     // Hitung QTY AWB: jumlah record yang memiliki resi (kolom G) yang tidak null
     // SAMA PERSIS dengan box QTY AWB: record.resi !== null
     const hasResi = record.resi !== null && record.resi !== undefined && record.resi !== '';
-    
+
     if (hasResi) {
       recordsWithQtyAwb++;
       if (!qtyAwbByDate[recordDay]) {
@@ -2537,7 +2712,7 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
       // Setiap record dengan resi = 1 AWB (sama seperti box QTY AWB)
       qtyAwbByDate[recordDay] += 1;
     }
-    
+
     // Hitung QTY PCS: jumlahkan qty dari kolom M (header "Qty")
     // SAMA PERSIS: jumlahkan semua nilai per tanggal (tanpa filter > 0)
     const qtyPcs = Number(record.qty) || 0;
@@ -2546,7 +2721,7 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
       qtyPcsByDate[recordDay] = 0;
     }
     qtyPcsByDate[recordDay] += qtyPcs;
-    
+
     // Hitung HARGA JUAL: jumlahkan hargaJual dari kolom AA (header "Harga Jual)
     // SAMA PERSIS seperti QTY PCS: jumlahkan semua nilai per tanggal
     const hargaJual = Number(record.hargaJual) || 0;
@@ -2555,7 +2730,7 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
       hargaJualByDate[recordDay] = 0;
     }
     hargaJualByDate[recordDay] += hargaJual;
-    
+
     // Hitung Sub Ongkir: jumlahkan subsidiOngkir dari kolom W (header "Subsidi Ongkir")
     // SAMA PERSIS seperti QTY PCS: jumlahkan semua nilai per tanggal
     // Debug: Pastikan field subsidiOngkir ada dan ter-parse dengan benar
@@ -2568,12 +2743,12 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
       subOngkirByDate[recordDay] = 0;
     }
     subOngkirByDate[recordDay] += subOngkir;
-    
+
     // Debug untuk beberapa record pertama
     if (recordsInMonth <= 5 && subOngkir > 0) {
       console.log(`✓ Record ${recordsInMonth}: Sub Ongkir = ${subOngkir}, dari record.subsidiOngkir = ${record.subsidiOngkir}`);
     }
-    
+
     // Hitung MARGIN: jumlahkan margin dari kolom AD (header "Margin")
     // SAMA PERSIS seperti QTY PCS: jumlahkan semua nilai per tanggal (bisa negatif)
     const margin = Number(record.margin) || 0;
@@ -2582,35 +2757,35 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
       marginByDate[recordDay] = 0;
     }
     marginByDate[recordDay] += margin;
-    
+
     // Debug untuk beberapa record pertama
     if (recordsInMonth <= 5) {
       console.log(`Record ${recordsInMonth}: tanggal ${recordDay}, resi: ${record.resi}, hasResi: ${hasResi}, qty: ${qtyPcs}, hargaJual: ${hargaJual}, margin: ${margin}, subOngkir: ${subOngkir}`);
     }
   });
-  
+
   console.log(`=== QTY AWB Calculation Summary ===`);
   console.log(`Records dalam bulan ${year}-${month}: ${recordsInMonth}`);
   console.log(`Records dengan resi !== null: ${recordsWithQtyAwb}`);
   console.log(`QTY AWB per tanggal:`, qtyAwbByDate);
-  
+
   console.log(`=== QTY PCS Calculation Summary ===`);
   console.log(`Total QTY PCS: ${totalQtyPcs}`);
   console.log(`QTY PCS per tanggal:`, qtyPcsByDate);
-  
+
   console.log(`=== HARGA JUAL Calculation Summary ===`);
   console.log(`Total HARGA JUAL: ${totalHargaJual.toLocaleString('id-ID')}`);
   console.log(`HARGA JUAL per tanggal:`, hargaJualByDate);
-  
+
   console.log(`=== MARGIN Calculation Summary ===`);
   console.log(`Total MARGIN: ${totalMargin.toLocaleString('id-ID')}`);
   console.log(`MARGIN per tanggal:`, marginByDate);
-  
+
   console.log(`=== Sub Ongkir Calculation Summary ===`);
   console.log(`Total Sub Ongkir: ${totalSubOngkir.toLocaleString('id-ID')}`);
   console.log(`Sub Ongkir per tanggal:`, subOngkirByDate);
   console.log(`Records dengan Sub Ongkir > 0: ${storeFilteredRecords.filter(r => (Number(r.subsidiOngkir) || 0) > 0).length} dari ${storeFilteredRecords.length} records`);
-  
+
   // Hitung OMSET per tanggal: HARGA JUAL - SUB ONGKIR (setelah aggregasi)
   // OMSET dihitung setelah semua data di-aggregate per tanggal
   const totalOmset = Object.keys(hargaJualByDate).reduce((sum, day) => {
@@ -2620,14 +2795,14 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
     omsetByDate[day] = omset;
     return sum + omset;
   }, 0);
-  
+
   console.log(`=== OMSET Calculation Summary ===`);
   console.log(`Total OMSET: ${totalOmset.toLocaleString('id-ID')}`);
   console.log(`OMSET per tanggal:`, omsetByDate);
-  
+
   // Hitung OMSET BERSIH per tanggal: OMSET - RTS
   // Akan dihitung setelah RTS dihitung dari data retur
-  
+
   // Hitung BIAYA IKLAN per tanggal dari data budget iklan
   // Data budget iklan ada di window.budgetIklanData
   const biayaIklanByDate = {};
@@ -2636,7 +2811,7 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
     console.log(`=== BIAYA IKLAN Calculation ===`);
     console.log(`Total budget entries: ${Object.keys(budgetByDateAndProduk).length}`);
     console.log(`Selected store: ${selectedStore}`);
-    
+
     // Iterate melalui semua data budget iklan
     Object.keys(budgetByDateAndProduk).forEach(key => {
       // Key format: "day-produk" (contoh: "1-TIKTOK SHOP", "2-SHOPEE STORE")
@@ -2645,20 +2820,20 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
       if (firstDashIndex === -1) {
         return; // Skip jika tidak ada "-"
       }
-      
+
       const dayStr = key.substring(0, firstDashIndex);
       const produk = key.substring(firstDashIndex + 1);
       const day = parseInt(dayStr);
-      
+
       if (isNaN(day)) {
         return;
       }
-      
+
       // Filter berdasarkan produk (toko) yang dipilih
       // Case-insensitive comparison untuk lebih fleksibel
       const produkTrimmed = String(produk).trim();
       const selectedStoreTrimmed = String(selectedStore).trim();
-      
+
       if (produkTrimmed.toLowerCase() === selectedStoreTrimmed.toLowerCase()) {
         const biayaIklan = budgetByDateAndProduk[key] || 0;
         if (!biayaIklanByDate[day]) {
@@ -2667,12 +2842,12 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
         biayaIklanByDate[day] += biayaIklan;
       }
     });
-    
+
     console.log(`BIAYA IKLAN per tanggal:`, biayaIklanByDate);
   } else {
     console.log('Data budget iklan belum tersedia untuk menghitung BIAYA IKLAN');
   }
-  
+
   // Hitung AWB RTS dari data retur
   // Data retur ada di window.returDataCache
   if (window.returDataCache && window.returDataCache.records && Array.isArray(window.returDataCache.records)) {
@@ -2680,7 +2855,7 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
     console.log(`=== AWB RTS Calculation ===`);
     console.log(`Total retur records: ${returRecords.length}`);
     console.log(`Selected store: ${selectedStore}`);
-    
+
     // Filter retur records berdasarkan toko yang dipilih (kolom B - Nama CS)
     const storeFilteredReturRecords = returRecords.filter(returRecord => {
       if (!returRecord.namaCS) {
@@ -2688,38 +2863,38 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
       }
       const returStore = String(returRecord.namaCS).trim();
       const selectedStoreTrimmed = String(selectedStore).trim();
-      
+
       // Case-insensitive comparison
       return returStore.toLowerCase() === selectedStoreTrimmed.toLowerCase();
     });
-    
+
     console.log(`Retur records dengan toko "${selectedStore}": ${storeFilteredReturRecords.length} dari ${returRecords.length}`);
-    
+
     // Hitung AWB RTS per tanggal
     // Logika sama seperti QTY AWB: hitung jumlah record dengan trackingID !== null per tanggal
     storeFilteredReturRecords.forEach(returRecord => {
       if (!returRecord.date) {
         return;
       }
-      
+
       const returDate = new Date(returRecord.date);
       if (isNaN(returDate.getTime())) {
         return;
       }
-      
+
       const returYear = returDate.getFullYear();
       const returMonth = returDate.getMonth() + 1;
       const returDay = returDate.getDate();
-      
+
       // Filter berdasarkan tahun dan bulan yang dipilih
       if (returYear !== year || returMonth !== month) {
         return;
       }
-      
+
       // Hitung AWB RTS: jumlah record yang memiliki trackingID (kolom Q) yang tidak null
       // SAMA PERSIS seperti QTY AWB: record.trackingID !== null
       const hasTrackingID = returRecord.trackingID !== null && returRecord.trackingID !== undefined && returRecord.trackingID !== '';
-      
+
       if (hasTrackingID) {
         if (!qtyAwbRtsByDate[returDay]) {
           qtyAwbRtsByDate[returDay] = 0;
@@ -2728,30 +2903,30 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
         qtyAwbRtsByDate[returDay] += 1;
       }
     });
-    
+
     console.log(`AWB RTS per tanggal:`, qtyAwbRtsByDate);
-    
+
     // Hitung RTS per tanggal
     // Logika: JUMLAHKAN nilai dari kolom Y (PENYESUAIAN RTS) per tanggal, bukan count record
     storeFilteredReturRecords.forEach(returRecord => {
       if (!returRecord.date) {
         return;
       }
-      
+
       const returDate = new Date(returRecord.date);
       if (isNaN(returDate.getTime())) {
         return;
       }
-      
+
       const returYear = returDate.getFullYear();
       const returMonth = returDate.getMonth() + 1;
       const returDay = returDate.getDate();
-      
+
       // Filter berdasarkan tahun dan bulan yang dipilih
       if (returYear !== year || returMonth !== month) {
         return;
       }
-      
+
       // Hitung RTS: JUMLAHKAN nilai penyesuaianRTS per tanggal
       // Oktober: kolom X (PENYESUAIAN RTS), November: kolom Y (PENYESUAIAN RTS)
       // Bukan count, tapi sum nilai
@@ -2766,9 +2941,9 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
         }
       }
     });
-    
+
     console.log(`RTS per tanggal:`, rtsByDate);
-    
+
     // Hitung OMSET BERSIH per tanggal: OMSET - RTS
     // OMSET BERSIH = OMSET (kolom 10) - RTS (kolom 5)
     Object.keys(omsetByDate).forEach(day => {
@@ -2777,7 +2952,7 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
       const omsetBersih = Math.max(0, omset - rts); // Pastikan tidak negatif
       omsetBersihByDate[day] = omsetBersih;
     });
-    
+
     console.log(`=== OMSET BERSIH Calculation Summary ===`);
     console.log(`OMSET BERSIH per tanggal:`, omsetBersihByDate);
   } else {
@@ -2787,7 +2962,7 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
       omsetBersihByDate[day] = omsetByDate[day] || 0;
     });
   }
-  
+
   // Hitung PROFIT per tanggal: MARGIN - BIAYA IKLAN - RTS
   const profitByDate = {};
   // Gabungkan semua tanggal yang ada (dari margin, biaya iklan, atau rts)
@@ -2796,7 +2971,7 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
     ...Object.keys(biayaIklanByDate).map(Number),
     ...Object.keys(rtsByDate).map(Number)
   ]);
-  
+
   allDays.forEach(day => {
     const margin = marginByDate[day] || 0;
     const biayaIklan = biayaIklanByDate[day] || 0;
@@ -2804,10 +2979,10 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
     const profit = margin - biayaIklan - rts;
     profitByDate[day] = profit;
   });
-  
+
   console.log(`=== PROFIT Calculation Summary ===`);
   console.log(`PROFIT per tanggal (MARGIN - BIAYA IKLAN - RTS):`, profitByDate);
-  
+
   // Hitung CPL (Cost Per Lead) per tanggal: BIAYA IKLAN / QTY AWB
   const cplByDate = {};
   // Hitung CAC (Customer Acquisition Cost) per tanggal: BIAYA IKLAN / QTY AWB (sama dengan CPL)
@@ -2818,7 +2993,7 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
   const roasByDate = {};
   // Hitung ROI (%) per tanggal: (PROFIT / BIAYA IKLAN) * 100
   const roiByDate = {};
-  
+
   // Gabungkan semua tanggal yang relevan
   const allDaysForMetrics = new Set([
     ...Object.keys(qtyAwbByDate).map(Number),
@@ -2827,42 +3002,42 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
     ...Object.keys(omsetByDate).map(Number),
     ...Object.keys(profitByDate).map(Number)
   ]);
-  
+
   allDaysForMetrics.forEach(day => {
     const qtyAwb = qtyAwbByDate[day] || 0;
     const qtyPcs = qtyPcsByDate[day] || 0;
     const biayaIklan = biayaIklanByDate[day] || 0;
     const omset = omsetByDate[day] || 0;
     const profit = profitByDate[day] || 0;
-    
+
     // CPL = BIAYA IKLAN / QTY AWB (jika QTY AWB > 0)
     if (qtyAwb > 0 && biayaIklan > 0) {
       cplByDate[day] = biayaIklan / qtyAwb;
     } else {
       cplByDate[day] = 0;
     }
-    
+
     // CAC = BIAYA IKLAN / QTY AWB (sama dengan CPL)
     if (qtyAwb > 0 && biayaIklan > 0) {
       cacByDate[day] = biayaIklan / qtyAwb;
     } else {
       cacByDate[day] = 0;
     }
-    
+
     // CPP = BIAYA IKLAN / QTY Pcs (jika QTY Pcs > 0)
     if (qtyPcs > 0 && biayaIklan > 0) {
       cppByDate[day] = biayaIklan / qtyPcs;
     } else {
       cppByDate[day] = 0;
     }
-    
+
     // ROAS = OMSET / BIAYA IKLAN (jika BIAYA IKLAN > 0)
     if (biayaIklan > 0 && omset > 0) {
       roasByDate[day] = omset / biayaIklan;
     } else {
       roasByDate[day] = 0;
     }
-    
+
     // ROI = (PROFIT / BIAYA IKLAN) * 100 (jika BIAYA IKLAN > 0)
     if (biayaIklan > 0) {
       roiByDate[day] = (profit / biayaIklan) * 100;
@@ -2870,7 +3045,7 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
       roiByDate[day] = 0;
     }
   });
-  
+
   console.log(`=== CPL Calculation Summary ===`);
   console.log(`CPL per tanggal (BIAYA IKLAN / QTY AWB):`, cplByDate);
   console.log(`=== CAC Calculation Summary ===`);
@@ -2881,7 +3056,7 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
   console.log(`ROAS per tanggal (OMSET / BIAYA IKLAN):`, roasByDate);
   console.log(`=== ROI Calculation Summary ===`);
   console.log(`ROI (%) per tanggal ((PROFIT / BIAYA IKLAN) * 100):`, roiByDate);
-  
+
   // Hitung total untuk semua kolom (gunakan nama yang berbeda untuk menghindari konflik)
   const totalQtyAwbSum = Object.values(qtyAwbByDate).reduce((sum, val) => sum + val, 0);
   const totalQtyPcsSum = Object.values(qtyPcsByDate).reduce((sum, val) => sum + val, 0);
@@ -2894,25 +3069,25 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
   const totalOmsetBersihSum = Object.values(omsetBersihByDate).reduce((sum, val) => sum + val, 0);
   const totalBiayaIklanSum = Object.values(biayaIklanByDate).reduce((sum, val) => sum + val, 0);
   const totalProfitSum = Object.values(profitByDate).reduce((sum, val) => sum + val, 0);
-  
+
   // Hitung RTS (%) total: (Total RTS / Total HARGA JUAL) * 100
   const totalRtsPercent = totalHargaJualSum > 0 ? (totalRtsSum / totalHargaJualSum) * 100 : 0;
-  
+
   // Hitung CPL total: Total BIAYA IKLAN / Total QTY AWB
   const totalCpl = totalQtyAwbSum > 0 ? totalBiayaIklanSum / totalQtyAwbSum : 0;
-  
+
   // Hitung CAC total: Total BIAYA IKLAN / Total QTY AWB (sama dengan CPL)
   const totalCac = totalQtyAwbSum > 0 ? totalBiayaIklanSum / totalQtyAwbSum : 0;
-  
+
   // Hitung CPP total: Total BIAYA IKLAN / Total QTY Pcs
   const totalCpp = totalQtyPcsSum > 0 ? totalBiayaIklanSum / totalQtyPcsSum : 0;
-  
+
   // Hitung ROAS total: Total OMSET / Total BIAYA IKLAN
   const totalRoas = totalBiayaIklanSum > 0 ? totalOmsetSum / totalBiayaIklanSum : 0;
-  
+
   // Hitung ROI total: (Total PROFIT / Total BIAYA IKLAN) * 100
   const totalRoi = totalBiayaIklanSum > 0 ? (totalProfitSum / totalBiayaIklanSum) * 100 : 0;
-  
+
   console.log(`=== Total Calculation Summary ===`);
   console.log(`Total QTY AWB: ${totalQtyAwbSum}`);
   console.log(`Total QTY Pcs: ${totalQtyPcsSum}`);
@@ -2931,14 +3106,14 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
   console.log(`Total CPP: ${totalCpp.toLocaleString('id-ID')}`);
   console.log(`Total ROAS: ${totalRoas.toFixed(2)}`);
   console.log(`Total ROI: ${totalRoi.toFixed(2)}%`);
-  
+
   // Update tabel dengan data QTY AWB
   const tbody = document.getElementById('dailyDataTableBody');
   if (!tbody) {
     console.error('Tbody tidak ditemukan!');
     return;
   }
-  
+
   // Update baris TOTAL terlebih dahulu
   const totalRow = document.getElementById('dailyDataTableTotalRow');
   if (totalRow) {
@@ -2947,115 +3122,115 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
     if (totalDateCell) {
       totalDateCell.textContent = 'TOTAL';
     }
-    
+
     // Kolom 2: Total QTY AWB
     const totalQtyAwbCell = totalRow.querySelector('td:nth-child(2)');
     if (totalQtyAwbCell) {
       totalQtyAwbCell.textContent = totalQtyAwbSum > 0 ? totalQtyAwbSum.toLocaleString('id-ID') : '';
     }
-    
+
     // Kolom 3: Total QTY Pcs
     const totalQtyPcsCell = totalRow.querySelector('td:nth-child(3)');
     if (totalQtyPcsCell) {
       totalQtyPcsCell.textContent = totalQtyPcsSum > 0 ? totalQtyPcsSum.toLocaleString('id-ID') : '';
     }
-    
+
     // Kolom 4: Total AWB RTS
     const totalQtyAwbRtsCell = totalRow.querySelector('td:nth-child(4)');
     if (totalQtyAwbRtsCell) {
       totalQtyAwbRtsCell.textContent = totalQtyAwbRtsSum > 0 ? totalQtyAwbRtsSum.toLocaleString('id-ID') : '';
     }
-    
+
     // Kolom 5: Total RTS
     const totalRtsCell = totalRow.querySelector('td:nth-child(5)');
     if (totalRtsCell) {
       totalRtsCell.textContent = totalRtsSum > 0 ? totalRtsSum.toLocaleString('id-ID') : '';
     }
-    
+
     // Kolom 6: Total RTS (%)
     const totalRtsPercentCell = totalRow.querySelector('td:nth-child(6)');
     if (totalRtsPercentCell) {
       totalRtsPercentCell.textContent = totalRtsPercent > 0 ? totalRtsPercent.toFixed(2) + '%' : '';
     }
-    
+
     // Kolom 7: Total HARGA JUAL
     const totalHargaJualCell = totalRow.querySelector('td:nth-child(7)');
     if (totalHargaJualCell) {
       totalHargaJualCell.textContent = totalHargaJualSum > 0 ? totalHargaJualSum.toLocaleString('id-ID') : '';
     }
-    
+
     // Kolom 8: Total Sub Ongkir
     const totalSubOngkirCell = totalRow.querySelector('td:nth-child(8)');
     if (totalSubOngkirCell) {
       totalSubOngkirCell.textContent = totalSubOngkirSum > 0 ? totalSubOngkirSum.toLocaleString('id-ID') : '';
     }
-    
+
     // Kolom 9: Total MARGIN
     const totalMarginCell = totalRow.querySelector('td:nth-child(9)');
     if (totalMarginCell) {
       totalMarginCell.textContent = totalMarginSum !== 0 ? totalMarginSum.toLocaleString('id-ID') : '';
     }
-    
+
     // Kolom 10: Total OMSET
     const totalOmsetCell = totalRow.querySelector('td:nth-child(10)');
     if (totalOmsetCell) {
       totalOmsetCell.textContent = totalOmsetSum > 0 ? totalOmsetSum.toLocaleString('id-ID') : '';
     }
-    
+
     // Kolom 11: Total OMSET BERSIH
     const totalOmsetBersihCell = totalRow.querySelector('td:nth-child(11)');
     if (totalOmsetBersihCell) {
       totalOmsetBersihCell.textContent = totalOmsetBersihSum > 0 ? totalOmsetBersihSum.toLocaleString('id-ID') : '';
     }
-    
+
     // Kolom 12: Total BIAYA IKLAN
     const totalBiayaIklanCell = totalRow.querySelector('td:nth-child(12)');
     if (totalBiayaIklanCell) {
       totalBiayaIklanCell.textContent = totalBiayaIklanSum > 0 ? totalBiayaIklanSum.toLocaleString('id-ID') : '';
     }
-    
+
     // Kolom 13: Total PROFIT
     const totalProfitCell = totalRow.querySelector('td:nth-child(13)');
     if (totalProfitCell) {
       totalProfitCell.textContent = totalProfitSum !== 0 ? totalProfitSum.toLocaleString('id-ID') : '';
     }
-    
+
     // Kolom 14: Total CPL
     const totalCplCell = totalRow.querySelector('td:nth-child(14)');
     if (totalCplCell) {
       totalCplCell.textContent = totalCpl > 0 ? totalCpl.toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : '';
     }
-    
+
     // Kolom 15: Total CAC
     const totalCacCell = totalRow.querySelector('td:nth-child(15)');
     if (totalCacCell) {
       totalCacCell.textContent = totalCac > 0 ? totalCac.toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : '';
     }
-    
+
     // Kolom 16: Total CPP
     const totalCppCell = totalRow.querySelector('td:nth-child(16)');
     if (totalCppCell) {
       totalCppCell.textContent = totalCpp > 0 ? totalCpp.toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : '';
     }
-    
+
     // Kolom 17: Total ROAS
     const totalRoasCell = totalRow.querySelector('td:nth-child(17)');
     if (totalRoasCell) {
       totalRoasCell.textContent = totalRoas > 0 ? totalRoas.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
     }
-    
+
     // Kolom 18: Total ROI (%)
     const totalRoiCell = totalRow.querySelector('td:nth-child(18)');
     if (totalRoiCell) {
       totalRoiCell.textContent = totalRoi !== 0 ? totalRoi.toFixed(2) + '%' : '';
     }
   }
-  
+
   const rows = tbody.querySelectorAll('tr:not(#dailyDataTableTotalRow)');
   console.log(`=== Update Tabel ===`);
   console.log(`Jumlah baris di tabel (tanpa baris TOTAL): ${rows.length}`);
   console.log(`Data QTY AWB yang akan diisi:`, qtyAwbByDate);
-  
+
   let updatedCountAwb = 0;
   let updatedCountPcs = 0;
   let updatedCountHargaJual = 0;
@@ -3079,7 +3254,7 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
     const cpp = cppByDate[day] || 0; // CPP = BIAYA IKLAN / QTY Pcs
     const roas = roasByDate[day] || 0; // ROAS = OMSET / BIAYA IKLAN
     const roi = roiByDate[day] || 0; // ROI = (PROFIT / BIAYA IKLAN) * 100
-    
+
     // Update kolom QTY AWB (kolom ke-2, setelah TANGGAL)
     const qtyAwbCell = row.querySelector('td:nth-child(2)');
     if (qtyAwbCell) {
@@ -3098,7 +3273,7 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
     } else {
       console.error(`❌ Kolom QTY AWB tidak ditemukan untuk baris ${day}!`);
     }
-    
+
     // Update kolom QTY PCS (kolom ke-3, setelah QTY AWB)
     const qtyPcsCell = row.querySelector('td:nth-child(3)');
     if (qtyPcsCell) {
@@ -3117,7 +3292,7 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
     } else {
       console.error(`❌ Kolom QTY PCS tidak ditemukan untuk baris ${day}!`);
     }
-    
+
     // Update kolom AWB RTS (kolom ke-4, setelah QTY PCS)
     // SAMA PERSIS seperti QTY AWB: hitung jumlah record dengan trackingID !== null per tanggal
     const qtyAwbRtsCell = row.querySelector('td:nth-child(4)');
@@ -3136,7 +3311,7 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
     } else {
       console.error(`❌ Kolom AWB RTS tidak ditemukan untuk baris ${day}!`);
     }
-    
+
     // Update kolom RTS (kolom ke-5, setelah AWB RTS)
     // SAMA PERSIS seperti AWB RTS: hitung jumlah record dengan penyesuaianRTS (kolom Y) !== null per tanggal
     const rtsCell = row.querySelector('td:nth-child(5)');
@@ -3155,7 +3330,7 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
     } else {
       console.error(`❌ Kolom RTS tidak ditemukan untuk baris ${day}!`);
     }
-    
+
     // Update kolom HARGA JUAL (kolom ke-7, setelah RTS (%))
     // SAMA PERSIS seperti QTY PCS: tampilkan jika !== 0, kosongkan jika 0
     const hargaJualCell = row.querySelector('td:nth-child(7)');
@@ -3176,7 +3351,7 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
     } else {
       console.error(`❌ Kolom HARGA JUAL tidak ditemukan untuk baris ${day}!`);
     }
-    
+
     // Update kolom Sub Ongkir (kolom ke-8, setelah HARGA JUAL)
     // SAMA PERSIS seperti QTY PCS: tampilkan jika !== 0, kosongkan jika 0
     const subOngkirCell = row.querySelector('td:nth-child(8)');
@@ -3197,7 +3372,7 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
     } else {
       console.error(`❌ Kolom Sub Ongkir tidak ditemukan untuk baris ${day}!`);
     }
-    
+
     // Update kolom MARGIN (kolom ke-9, setelah Sub Ongkir)
     // SAMA PERSIS seperti QTY PCS: tampilkan jika !== 0 (bisa negatif), kosongkan jika 0
     const marginCell = row.querySelector('td:nth-child(9)');
@@ -3218,7 +3393,7 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
     } else {
       console.error(`❌ Kolom MARGIN tidak ditemukan untuk baris ${day}!`);
     }
-    
+
     // OMSET = HARGA JUAL - SUB ONGKIR (sudah di-aggregate per tanggal)
     const omsetCell = row.querySelector('td:nth-child(10)');
     if (omsetCell) {
@@ -3237,7 +3412,7 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
     } else {
       console.error(`❌ Kolom OMSET tidak ditemukan untuk baris ${day}!`);
     }
-    
+
     // Update kolom OMSET BERSIH (kolom ke-11, setelah OMSET)
     // OMSET BERSIH = OMSET (kolom 10) - RTS (kolom 5)
     const omsetBersihCell = row.querySelector('td:nth-child(11)');
@@ -3256,7 +3431,7 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
     } else {
       console.error(`❌ Kolom OMSET BERSIH tidak ditemukan untuk baris ${day}!`);
     }
-    
+
     // Update kolom BIAYA IKLAN (kolom ke-12, setelah OMSET BERSIH)
     // BIAYA IKLAN dari data budget iklan, filter berdasarkan PRODUK (toko yang dipilih)
     const biayaIklanCell = row.querySelector('td:nth-child(12)');
@@ -3276,7 +3451,7 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
     } else {
       console.error(`❌ Kolom BIAYA IKLAN tidak ditemukan untuk baris ${day}!`);
     }
-    
+
     // Update kolom PROFIT (kolom ke-13, setelah BIAYA IKLAN)
     // PROFIT = MARGIN - BIAYA IKLAN - RTS
     const profitCell = row.querySelector('td:nth-child(13)');
@@ -3296,7 +3471,7 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
     } else {
       console.error(`❌ Kolom PROFIT tidak ditemukan untuk baris ${day}!`);
     }
-    
+
     // Update kolom CPL (Cost Per Lead) (kolom ke-14, setelah PROFIT)
     // CPL = BIAYA IKLAN / QTY AWB
     const cplCell = row.querySelector('td:nth-child(14)');
@@ -3316,7 +3491,7 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
     } else {
       console.error(`❌ Kolom CPL tidak ditemukan untuk baris ${day}!`);
     }
-    
+
     // Update kolom CAC (Customer Acquisition Cost) (kolom ke-15, setelah CPL)
     // CAC = BIAYA IKLAN / QTY AWB (sama dengan CPL)
     const cacCell = row.querySelector('td:nth-child(15)');
@@ -3336,7 +3511,7 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
     } else {
       console.error(`❌ Kolom CAC tidak ditemukan untuk baris ${day}!`);
     }
-    
+
     // Update kolom CPP (Cost Per Purchase) (kolom ke-16, setelah CAC)
     // CPP = BIAYA IKLAN / QTY Pcs
     const cppCell = row.querySelector('td:nth-child(16)');
@@ -3356,7 +3531,7 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
     } else {
       console.error(`❌ Kolom CPP tidak ditemukan untuk baris ${day}!`);
     }
-    
+
     // Update kolom ROAS (Return on Ad Spend) (kolom ke-17, setelah CPP)
     // ROAS = OMSET / BIAYA IKLAN
     const roasCell = row.querySelector('td:nth-child(17)');
@@ -3376,7 +3551,7 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
     } else {
       console.error(`❌ Kolom ROAS tidak ditemukan untuk baris ${day}!`);
     }
-    
+
     // Update kolom ROI (%) (kolom ke-18, setelah ROAS)
     // ROI = (PROFIT / BIAYA IKLAN) * 100
     const roiCell = row.querySelector('td:nth-child(18)');
@@ -3397,7 +3572,7 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
       console.error(`❌ Kolom ROI tidak ditemukan untuk baris ${day}!`);
     }
   });
-  
+
   console.log(`=== Summary ===`);
   console.log(`Total ${updatedCountAwb} baris di-update dengan data QTY AWB`);
   console.log(`Total ${Object.keys(qtyAwbByDate).length} tanggal memiliki data QTY AWB`);
@@ -3409,6 +3584,12 @@ const updateDailyDataTableData = (filteredRecords, year, month) => {
   console.log(`Total ${Object.keys(hargaJualByDate).length} tanggal memiliki data HARGA JUAL`);
   console.log(`Total ${updatedCountMargin} baris di-update dengan data MARGIN`);
   console.log(`Total ${Object.keys(marginByDate).length} tanggal memiliki data MARGIN`);
+
+  // Apply dark mode styling jika sedang dark mode
+  // Gunakan setTimeout untuk memastikan DOM sudah ter-render
+  setTimeout(() => {
+    applyDarkModeToTable();
+  }, 200);
 };
 
 const aggregateVariance = (data) => {
@@ -3597,7 +3778,7 @@ const initFilters = () => {
         if (selectedMonth) {
           // Inisialisasi tabel data harian untuk bulan yang dipilih
           initDailyDataTable(selectedMonth.year, selectedMonth.month);
-          
+
           // Set start date ke tanggal 1 bulan tersebut (00:00:00)
           const startDate = new Date(selectedMonth.year, selectedMonth.month, 1);
           startDate.setHours(0, 0, 0, 0);
@@ -3636,13 +3817,13 @@ const initFilters = () => {
 
   elements.revenueType.addEventListener('change', () => {
     filters.revenueType = elements.revenueType.value;
-    
+
     // Update status button "Pilih Toko" berdasarkan marketplace
     const selectStoreBtn = document.getElementById('selectStoreBtn');
     const selectStoreTooltip = document.getElementById('selectStoreTooltip');
     if (selectStoreBtn) {
       const marketplaceValue = elements.revenueType.value || 'All';
-      
+
       // Hapus semua event listener tooltip yang ada (jika ada)
       if (selectStoreBtn._tooltipEnterHandler) {
         selectStoreBtn.removeEventListener('mouseenter', selectStoreBtn._tooltipEnterHandler);
@@ -3652,13 +3833,13 @@ const initFilters = () => {
         selectStoreBtn.removeEventListener('mouseleave', selectStoreBtn._tooltipLeaveHandler);
         selectStoreBtn._tooltipLeaveHandler = null;
       }
-      
+
       if (marketplaceValue === 'All' || marketplaceValue === '') {
         // Disable button jika marketplace = All
         selectStoreBtn.disabled = true;
         selectStoreBtn.style.opacity = '0.5';
         selectStoreBtn.style.cursor = 'not-allowed';
-        
+
         // Setup tooltip untuk button disabled (hover aktif)
         if (selectStoreTooltip) {
           const tooltipEnterHandler = () => {
@@ -3673,24 +3854,24 @@ const initFilters = () => {
               selectStoreTooltip.style.display = 'none';
             }, 200);
           };
-          
+
           selectStoreBtn.addEventListener('mouseenter', tooltipEnterHandler);
           selectStoreBtn.addEventListener('mouseleave', tooltipLeaveHandler);
-          
+
           // Simpan reference untuk bisa dihapus nanti
           selectStoreBtn._tooltipEnterHandler = tooltipEnterHandler;
           selectStoreBtn._tooltipLeaveHandler = tooltipLeaveHandler;
         }
-        
+
         // Reset toko yang dipilih
         window.selectedStoreName = 'NAMA TOKO';
-        
+
         // Reset judul ke "Data Harian Toko" saja
         const dailyDataTitle = document.getElementById('dailyDataTitle');
         if (dailyDataTitle) {
           dailyDataTitle.textContent = 'Data Harian Toko';
         }
-        
+
         const monthSelect = document.getElementById('monthSelect');
         if (monthSelect && monthSelect.value) {
           const selectedValue = monthSelect.value;
@@ -3704,7 +3885,7 @@ const initFilters = () => {
         selectStoreBtn.disabled = false;
         selectStoreBtn.style.opacity = '1';
         selectStoreBtn.style.cursor = 'pointer';
-        
+
         // Sembunyikan tooltip dan pastikan tidak muncul saat hover (hover non aktif)
         if (selectStoreTooltip) {
           selectStoreTooltip.style.display = 'none';
@@ -3712,7 +3893,7 @@ const initFilters = () => {
         }
       }
     }
-    
+
     updateDashboard();
   });
 
@@ -4072,7 +4253,7 @@ const initCharts = () => {
     // Set tinggi chart Budget Iklan sama dengan chart Retur
     const returChartEl = document.getElementById('returChart');
     const targetHeight = returChartEl ? returChartEl.offsetHeight : 300;
-    
+
     charts.breakdown = new Chart(breakdownEl, {
       type: 'polarArea',
       data: {
@@ -4118,7 +4299,7 @@ const initCharts = () => {
         }
       },
     });
-    
+
     // Set tinggi container chart (div pembungkus canvas)
     const chartContainer = breakdownEl.parentElement;
     if (chartContainer && chartContainer.style) {
@@ -4234,7 +4415,7 @@ const updateTrendLine = (data) => {
 
 const updateBreakdownLegend = (entries) => {
   elements.breakdownLegend.textContent = '';
-  
+
   entries.forEach(([label, value], index) => {
     const item = document.createElement('div');
     item.className = 'legend-item';
@@ -4345,14 +4526,14 @@ const applyDisplayMode = () => {
     // Tambahkan efek glow/shadow pada header untuk wallpaper mode agar lebih terlihat
     const headerH1 = document.querySelector('.dashboard-header h1');
     const companyName = document.querySelector('.dashboard-header .company-name');
-    
+
     if (headerH1) {
       // Text shadow dengan efek glow yang kuat (multiple shadows untuk efek bersinar)
       headerH1.style.textShadow = '0 0 10px rgba(255, 255, 255, 0.8), 0 0 20px rgba(255, 255, 255, 0.6), 0 0 30px rgba(255, 255, 255, 0.4), 0 2px 4px rgba(0, 0, 0, 0.5)';
       headerH1.style.color = '#fff';
       headerH1.style.fontWeight = '700';
     }
-    
+
     if (companyName) {
       // Text shadow dengan efek glow yang lebih halus untuk company name
       companyName.style.textShadow = '0 0 8px rgba(255, 255, 255, 0.7), 0 0 15px rgba(255, 255, 255, 0.5), 0 0 25px rgba(255, 255, 255, 0.3), 0 1px 2px rgba(0, 0, 0, 0.4)';
@@ -4460,12 +4641,12 @@ const applyDisplayMode = () => {
     // Reset text shadow untuk header saat dark mode (tidak perlu glow)
     const headerH1 = document.querySelector('.dashboard-header h1');
     const companyName = document.querySelector('.dashboard-header .company-name');
-    
+
     if (headerH1) {
       headerH1.style.textShadow = '';
       headerH1.style.color = '#e0e0e0';
     }
-    
+
     if (companyName) {
       companyName.style.textShadow = '';
       companyName.style.color = 'rgba(255, 255, 255, 0.7)';
@@ -4526,6 +4707,12 @@ const applyDisplayMode = () => {
         spinner.style.borderTopColor = '#e0e0e0';
       }
     }
+
+    // Update tabel data harian untuk dark mode
+    // Gunakan setTimeout untuk memastikan tabel sudah ter-render
+    setTimeout(() => {
+      applyDarkModeToTable();
+    }, 100);
 
     // Update refresh button (warna akan di-update oleh applyColorPalette)
     // Tidak perlu set manual di sini karena applyColorPalette akan handle
@@ -4589,12 +4776,12 @@ const applyDisplayMode = () => {
     // Reset text shadow untuk header saat keluar dari wallpaper mode
     const headerH1 = document.querySelector('.dashboard-header h1');
     const companyName = document.querySelector('.dashboard-header .company-name');
-    
+
     if (headerH1) {
       headerH1.style.textShadow = '';
       headerH1.style.color = '';
     }
-    
+
     if (companyName) {
       companyName.style.textShadow = '';
       companyName.style.color = '';
@@ -4650,6 +4837,54 @@ const applyDisplayMode = () => {
         spinner.style.borderColor = 'rgba(90, 100, 199, 0.2)';
         spinner.style.borderTopColor = '#5a64c7';
       }
+    }
+
+    // Reset tabel data harian untuk light mode
+    const dailyTableLight = document.getElementById('dailyDataTableContent');
+    if (dailyTableLight) {
+      // Reset border tabel ke default
+      dailyTableLight.style.borderColor = '#e0e0e0';
+
+      // Reset semua cell borders ke default
+      const allCells = dailyTableLight.querySelectorAll('td, th');
+      allCells.forEach(cell => {
+        const currentStyle = cell.style.cssText;
+        // Replace border abu-abu gelap dengan putih
+        cell.style.cssText = currentStyle
+          .replace(/border-right:\s*1px solid #444/g, 'border-right: 1px solid #e0e0e0')
+          .replace(/border-bottom:\s*1px solid #444/g, 'border-bottom: 1px solid #e0e0e0')
+          .replace(/border:\s*1px solid #444/g, 'border: 1px solid #e0e0e0');
+        cell.style.color = '';
+      });
+
+      // Reset baris TOTAL
+      const totalRowLight = document.getElementById('dailyDataTableTotalRow');
+      if (totalRowLight) {
+        totalRowLight.style.backgroundColor = '#f5f5f5';
+        totalRowLight.style.color = '';
+
+        // Reset semua cell di baris TOTAL
+        const totalCells = totalRowLight.querySelectorAll('td');
+        totalCells.forEach(cell => {
+          const currentStyle = cell.style.cssText;
+          // Reset background dan border
+          cell.style.cssText = currentStyle
+            .replace(/background-color:\s*#3d3d3d/g, 'background-color: #f5f5f5')
+            .replace(/border-right:\s*1px solid #444/g, 'border-right: 1px solid #e0e0e0');
+          cell.style.color = '';
+        });
+      }
+
+      // Reset kolom TANGGAL
+      const dateColumn = dailyTableLight.querySelectorAll('tbody tr td:first-child');
+      dateColumn.forEach(cell => {
+        const currentStyle = cell.style.cssText;
+        // Reset background untuk kolom tanggal
+        if (currentStyle.includes('background-color: #3d3d3d')) {
+          cell.style.cssText = currentStyle.replace(/background-color:\s*#3d3d3d/g, 'background-color: #f9f9f9');
+        }
+        cell.style.color = '';
+      });
     }
 
     // Reset refresh button
@@ -4781,7 +5016,7 @@ const applyColorPalette = () => {
     const b = parseInt(hex.slice(5, 7), 16);
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   };
-  
+
   const hexToRgb = (hex) => {
     const r = parseInt(hex.slice(1, 3), 16);
     const g = parseInt(hex.slice(3, 5), 16);
@@ -4797,7 +5032,7 @@ const applyColorPalette = () => {
       header.style.color = '#ffffff'; // Tetap putih untuk kontras
       header.style.position = 'sticky'; // Pastikan sticky
       header.style.top = '0'; // Posisi di top
-      
+
       // Kolom pertama (TANGGAL) juga sticky saat scroll horizontal
       if (index === 0) {
         header.style.left = '0';
@@ -4807,7 +5042,7 @@ const applyColorPalette = () => {
       }
     });
   }
-  
+
   // Update sticky headers setelah warna di-update
   updateStickyHeaders();
 
@@ -4833,43 +5068,43 @@ const applyColorPalette = () => {
     const hoverB = Math.max(0, rgb.b - 20);
     refreshBtn.style.setProperty('--hover-color', `rgb(${hoverR}, ${hoverG}, ${hoverB})`);
   }
-  
+
   // Update button "Pilih Toko" color berdasarkan palette
   const selectStoreBtn = document.getElementById('selectStoreBtn');
   if (selectStoreBtn && chartColors && chartColors.length > 0) {
     const primaryColor = chartColors[0];
     selectStoreBtn.style.backgroundColor = primaryColor;
     selectStoreBtn.style.color = '#fff';
-    
+
     // Tambahkan box-shadow 3D dengan warna palette
     const shadowColor = hexToRgba(primaryColor, 0.3);
     selectStoreBtn.style.setProperty('box-shadow', `0 4px 12px ${shadowColor}, 0 2px 4px ${hexToRgba(primaryColor, 0.2)}`, 'important');
-    
+
     // Update hover effect dengan warna yang sedikit lebih gelap
     const rgb = hexToRgb(primaryColor);
     const hoverR = Math.max(0, rgb.r - 20);
     const hoverG = Math.max(0, rgb.g - 20);
     const hoverB = Math.max(0, rgb.b - 20);
     selectStoreBtn.style.setProperty('--hover-color', `rgb(${hoverR}, ${hoverG}, ${hoverB})`);
-    
+
     // Hapus event listener lama jika ada, lalu tambahkan yang baru
     const oldHoverHandler = selectStoreBtn._hoverHandler;
     if (oldHoverHandler) {
       selectStoreBtn.removeEventListener('mouseenter', oldHoverHandler.enter);
       selectStoreBtn.removeEventListener('mouseleave', oldHoverHandler.leave);
     }
-    
+
     // Buat handler baru
-    const hoverEnter = function() {
+    const hoverEnter = function () {
       this.style.backgroundColor = `rgb(${hoverR}, ${hoverG}, ${hoverB})`;
     };
-    const hoverLeave = function() {
+    const hoverLeave = function () {
       this.style.backgroundColor = primaryColor;
     };
-    
+
     // Simpan reference untuk bisa dihapus nanti
     selectStoreBtn._hoverHandler = { enter: hoverEnter, leave: hoverLeave };
-    
+
     // Tambahkan hover effect via JavaScript
     selectStoreBtn.addEventListener('mouseenter', hoverEnter);
     selectStoreBtn.addEventListener('mouseleave', hoverLeave);
@@ -4919,7 +5154,7 @@ const applyColorPalette = () => {
   if (filtersCard && chartColors && chartColors.length > 0) {
     // Gunakan warna pertama dari palette untuk background filter card
     const filterBgColor = chartColors[0];
-    
+
     // Convert hex to rgba dengan opacity untuk background yang lebih soft
     const hexToRgba = (hex, alpha) => {
       const r = parseInt(hex.slice(1, 3), 16);
@@ -4927,12 +5162,12 @@ const applyColorPalette = () => {
       const b = parseInt(hex.slice(5, 7), 16);
       return `rgba(${r}, ${g}, ${b}, ${alpha})`;
     };
-    
+
     // Gunakan warna dengan opacity 0.25 untuk background yang lebih terlihat tapi tetap soft
     const bgOpacity = isDark ? 0.3 : 0.2;
     filtersCard.style.background = hexToRgba(filterBgColor, bgOpacity);
     filtersCard.style.backgroundColor = hexToRgba(filterBgColor, bgOpacity);
-    
+
     // Tambahkan box-shadow seperti card lainnya (mirip dengan ROI dan Qty AWB box)
     // Shadow yang lebih terlihat dan konsisten dengan card lainnya
     if (isDark) {
@@ -4941,7 +5176,7 @@ const applyColorPalette = () => {
       const shadowColor = hexToRgba(filterBgColor, 0.3);
       filtersCard.style.setProperty('box-shadow', `0 4px 12px ${shadowColor}, 0 2px 4px ${hexToRgba(filterBgColor, 0.2)}`, 'important');
     }
-    
+
     // Update box-shadow untuk semua card (card 1-6) agar mengikuti color palette
     const allCards = document.querySelectorAll('.card:not(.filters-card)');
     allCards.forEach(card => {
@@ -4955,7 +5190,7 @@ const applyColorPalette = () => {
         }
       }
     });
-    
+
     // Update background color untuk card 3 (breakdown/profit) agar mengikuti color palette
     // Skip jika wallpaper mode (card 3 akan menggunakan background putih seperti card lainnya)
     const card3 = document.querySelector('.card.breakdown');
@@ -4965,7 +5200,7 @@ const applyColorPalette = () => {
       const card3BgOpacity = isDark ? 0.3 : 0.25;
       card3.style.background = hexToRgba(card3BgColor, card3BgOpacity);
       card3.style.backgroundColor = hexToRgba(card3BgColor, card3BgOpacity);
-      
+
       // Pastikan text tetap readable
       if (isDark) {
         card3.style.color = '#fff';
@@ -4978,7 +5213,7 @@ const applyColorPalette = () => {
       card3.style.backgroundColor = 'rgba(255, 255, 255, 0.95)';
       card3.style.color = '#1f2b4a';
     }
-    
+
     // Pastikan text tetap readable (gunakan warna gelap untuk kontras)
     // Jika mode dark, gunakan warna putih untuk text
     if (isDark) {
@@ -5020,7 +5255,7 @@ const applyColorPalette = () => {
   // Update box-shadow untuk Qty AWB dan Qty PCS box agar mengikuti color palette
   const qtyAwbBox = document.getElementById('qtyAwbBox');
   const qtyPcsBox = document.getElementById('qtyPcsBox');
-  
+
   if (chartColors && chartColors.length > 0) {
     // Helper function untuk convert hex to rgba
     const hexToRgba = (hex, alpha) => {
@@ -5029,7 +5264,7 @@ const applyColorPalette = () => {
       const b = parseInt(hex.slice(5, 7), 16);
       return `rgba(${r}, ${g}, ${b}, ${alpha})`;
     };
-    
+
     if (qtyAwbBox) {
       const awbColor = chartColors[0];
       if (isDark) {
@@ -5039,7 +5274,7 @@ const applyColorPalette = () => {
         qtyAwbBox.style.setProperty('box-shadow', `0 4px 12px ${shadowColor}, 0 2px 4px ${hexToRgba(awbColor, 0.2)}`, 'important');
       }
     }
-    
+
     if (qtyPcsBox && chartColors.length > 1) {
       const pcsColor = chartColors[1] || chartColors[0];
       if (isDark) {
@@ -5049,7 +5284,7 @@ const applyColorPalette = () => {
         qtyPcsBox.style.setProperty('box-shadow', `0 4px 12px ${shadowColor}, 0 2px 4px ${hexToRgba(pcsColor, 0.2)}`, 'important');
       }
     }
-    
+
     // Update box-shadow untuk ROI box agar mengikuti color palette
     const roiBox = document.getElementById('roiBox');
     if (roiBox) {
@@ -5061,18 +5296,18 @@ const applyColorPalette = () => {
         roiBox.style.setProperty('box-shadow', `0 4px 12px ${shadowColor}, 0 2px 4px ${hexToRgba(roiColor, 0.2)}`, 'important');
       }
     }
-    
+
     // Update semua caption chart dengan background box sesuai palette dan ukuran sama dengan profit
     const allCaptions = document.querySelectorAll('.caption');
     allCaptions.forEach((caption, index) => {
       if (chartColors && chartColors.length > 0) {
         // Gunakan warna yang sama untuk semua caption (warna pertama dari palette)
         const captionColor = chartColors[0];
-        
+
         // Set background color
         caption.style.backgroundColor = captionColor;
         caption.style.color = '#fff';
-        
+
         // Set ukuran yang sama dengan profit caption (kecil)
         caption.style.padding = '4px 8px';
         caption.style.borderRadius = '6px';
@@ -5080,7 +5315,7 @@ const applyColorPalette = () => {
         caption.style.display = 'inline-block';
         caption.style.fontWeight = '600';
         caption.style.whiteSpace = 'nowrap';
-        
+
         // Tambahkan box-shadow untuk efek 3D
         if (isDark) {
           caption.style.setProperty('box-shadow', '0 4px 12px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.2)', 'important');
@@ -5099,29 +5334,29 @@ const updateProfitChart = (filtered, returData, budgetAggregated) => {
   console.log('Filtered records:', filtered.length);
   console.log('Retur data:', returData);
   console.log('Budget aggregated:', budgetAggregated);
-  
+
   try {
     // ===== HITUNG PROFIT =====
     // Profit = Total Margin - Total Biaya Iklan - Total RTS
-    
+
     // Ambil total margin dari filtered data
     const totalMargin = filtered.reduce((sum, record) => sum + (record.margin || 0), 0);
-    
+
     // Total RTS dari returData
     const totalRTS = returData.total || 0;
-    
+
     // Total Budget Iklan dari budgetAggregated
     const totalBudgetIklan = budgetAggregated.data.reduce((sum, val) => sum + val, 0);
-    
+
     // Hitung profit
     const totalProfit = totalMargin - totalBudgetIklan - totalRTS;
-    
+
     console.log('=== PROFIT CALCULATION ===');
     console.log('Total Margin:', totalMargin);
     console.log('Total Budget Iklan:', totalBudgetIklan);
     console.log('Total RTS:', totalRTS);
     console.log('Total Profit:', totalProfit);
-    
+
     // Update caption profit
     const profitCaption = document.querySelector('[data-profit-total]');
     console.log('Profit caption element:', profitCaption);
@@ -5131,24 +5366,24 @@ const updateProfitChart = (filtered, returData, budgetAggregated) => {
     } else {
       console.error('Element [data-profit-total] tidak ditemukan!');
     }
-    
+
     // Hitung dan update ROI
     const roi = totalBudgetIklan > 0 ? (totalProfit / totalBudgetIklan) * 100 : 0;
     const roiElement = document.querySelector('[data-roi-value]');
     const roiBox = document.getElementById('roiBox');
-    
+
     if (roiElement) {
       roiElement.textContent = `${roi.toFixed(2)}%`;
       console.log('ROI calculated:', roi.toFixed(2) + '%');
     }
-    
+
     // Set background color ROI box sesuai palette
     if (roiBox && chartColors.length > 0) {
       const roiColor = chartColors[0]; // Gunakan warna pertama dari palette
       roiBox.style.background = `linear-gradient(135deg, ${roiColor}20, ${roiColor}40)`;
       roiBox.style.borderLeft = `4px solid ${roiColor}`;
       roiBox.style.color = displayMode === 'dark' ? '#e0e0e0' : '#1f2b4a';
-      
+
       // Tambahkan box-shadow seperti card lainnya untuk efek 3D
       // Helper function untuk convert hex to rgba
       const hexToRgba = (hex, alpha) => {
@@ -5157,7 +5392,7 @@ const updateProfitChart = (filtered, returData, budgetAggregated) => {
         const b = parseInt(hex.slice(5, 7), 16);
         return `rgba(${r}, ${g}, ${b}, ${alpha})`;
       };
-      
+
       if (displayMode === 'dark') {
         roiBox.style.setProperty('box-shadow', '0 4px 12px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.2)', 'important');
       } else {
@@ -5165,7 +5400,7 @@ const updateProfitChart = (filtered, returData, budgetAggregated) => {
         roiBox.style.setProperty('box-shadow', `0 4px 12px ${shadowColor}, 0 2px 4px ${hexToRgba(roiColor, 0.2)}`, 'important');
       }
     }
-    
+
     // Update chart profit (per week)
     if (charts.profit) {
       // Aggregate margin by week
@@ -5173,13 +5408,13 @@ const updateProfitChart = (filtered, returData, budgetAggregated) => {
         ...record,
         revenue: record.margin || 0 // Gunakan margin sebagai revenue untuk aggregasi
       })));
-      
+
       console.log('Margin by week:', marginByWeek);
-      
+
       // Convert object to array for easier processing
       const weeks = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
       const weekLabels = weeks;
-      
+
       // Hitung profit per week (proporsional)
       const profitData = weeks.map((weekLabel) => {
         // Untuk setiap week, hitung profit = margin - (budget + rts) proporsional
@@ -5192,10 +5427,10 @@ const updateProfitChart = (filtered, returData, budgetAggregated) => {
         // Return profit atau null jika 0 (Chart.js akan tetap tampilkan label tapi tanpa bar)
         return weekProfit === 0 ? null : weekProfit;
       });
-      
+
       // Determine if dark mode
       const isDarkMode = displayMode === 'dark';
-      
+
       charts.profit.data.labels = weekLabels;
       charts.profit.data.datasets = [
         {
@@ -5211,7 +5446,7 @@ const updateProfitChart = (filtered, returData, budgetAggregated) => {
           barPercentage: 0.85,
         },
       ];
-      
+
       console.log('Profit chart data:', charts.profit.data);
       console.log('Profit chart labels:', charts.profit.data.labels);
       console.log('Profit chart values:', profitData);
@@ -5378,25 +5613,25 @@ const updateDashboard = () => {
       const formattedAmount = currencyFormatter.format(omsetBersih);
       elements.omsetKotorTotal.innerHTML = `<strong>${formattedAmount}</strong> total`;
     }
-    
+
     // Hitung Qty AWB (jumlah resi dari kolom G yang tidak kosong) dan Qty PCS (jumlah total qty dari kolom M)
     const qtyAwb = filtered.filter(record => record.resi !== null).length;
     const qtyPcs = filtered.reduce((sum, record) => sum + (record.qty || 0), 0);
-    
+
     // Update Qty AWB
     const qtyAwbElement = document.querySelector('[data-qty-awb]');
     const qtyAwbBox = document.getElementById('qtyAwbBox');
     if (qtyAwbElement) {
       qtyAwbElement.textContent = qtyAwb.toLocaleString('id-ID');
     }
-    
+
     // Update Qty PCS
     const qtyPcsElement = document.querySelector('[data-qty-pcs]');
     const qtyPcsBox = document.getElementById('qtyPcsBox');
     if (qtyPcsElement) {
       qtyPcsElement.textContent = qtyPcs.toLocaleString('id-ID');
     }
-    
+
     // Set background color AWB dan PCS box sesuai palette
     // Helper function untuk convert hex to rgba
     const hexToRgba = (hex, alpha) => {
@@ -5405,13 +5640,13 @@ const updateDashboard = () => {
       const b = parseInt(hex.slice(5, 7), 16);
       return `rgba(${r}, ${g}, ${b}, ${alpha})`;
     };
-    
+
     if (qtyAwbBox && chartColors.length > 0) {
       const awbColor = chartColors[0];
       qtyAwbBox.style.background = `linear-gradient(135deg, ${awbColor}20, ${awbColor}40)`;
       qtyAwbBox.style.borderLeft = `4px solid ${awbColor}`;
       qtyAwbBox.style.color = displayMode === 'dark' ? '#e0e0e0' : '#1f2b4a';
-      
+
       // Tambahkan box-shadow seperti card lainnya untuk efek 3D
       if (displayMode === 'dark') {
         qtyAwbBox.style.setProperty('box-shadow', '0 4px 12px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.2)', 'important');
@@ -5420,13 +5655,13 @@ const updateDashboard = () => {
         qtyAwbBox.style.setProperty('box-shadow', `0 4px 12px ${shadowColor}, 0 2px 4px ${hexToRgba(awbColor, 0.2)}`, 'important');
       }
     }
-    
+
     if (qtyPcsBox && chartColors.length > 1) {
       const pcsColor = chartColors[1] || chartColors[0];
       qtyPcsBox.style.background = `linear-gradient(135deg, ${pcsColor}20, ${pcsColor}40)`;
       qtyPcsBox.style.borderLeft = `4px solid ${pcsColor}`;
       qtyPcsBox.style.color = displayMode === 'dark' ? '#e0e0e0' : '#1f2b4a';
-      
+
       // Tambahkan box-shadow seperti card lainnya untuk efek 3D
       if (displayMode === 'dark') {
         qtyPcsBox.style.setProperty('box-shadow', '0 4px 12px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.2)', 'important');
@@ -5651,7 +5886,7 @@ const updateDashboard = () => {
       }
     }
 
-    });
+  });
 
   // Update tabel data harian dengan data yang difilter
   // Pastikan dipanggil setelah semua filter diterapkan
@@ -5711,7 +5946,7 @@ const updateDashboard = () => {
             chartContainer.style.maxHeight = `${targetHeight}px`;
           }
         }
-        
+
         charts.breakdown.data.labels = budgetAggregated.labels;
         charts.breakdown.data.datasets[0].data = budgetAggregated.data;
         charts.breakdown.data.datasets[0].backgroundColor = chartColors;
@@ -5725,7 +5960,7 @@ const updateDashboard = () => {
 
       // Update legend untuk budget iklan
       updateBreakdownLegend(budgetAggregated.labels.map((label, index) => [label, budgetAggregated.data[index]]));
-      
+
       // Update caption dengan total budget iklan (format sama dengan caption lainnya)
       const totalBudgetIklan = budgetAggregated.data.reduce((sum, val) => sum + val, 0);
       const budgetIklanCaption = document.querySelector('[data-budget-iklan-total]');
@@ -5819,7 +6054,7 @@ const bootstrap = async () => {
     // Assign records ke window.records agar bisa diakses oleh fungsi getAvailableStores
     window.records = records;
     console.log('window.records assigned:', window.records ? window.records.length : 0, 'records');
-    
+
     // Analisis data berdasarkan company type
     if (window.records && window.records.length > 0) {
       const companyTypeCounts = { LKM: 0, NUMETA: 0, LBM: 0, Other: 0 };
@@ -5838,7 +6073,7 @@ const bootstrap = async () => {
       console.log('Other records:', companyTypeCounts.Other);
       console.log('Expected userType:', userType);
       console.log('Expected records for this userType:', companyTypeCounts[userType] || 0);
-      
+
       // Sample records untuk debugging
       console.log('Sample record:', window.records[0]);
       console.log('Sample record doType:', window.records[0].doType);
@@ -5848,7 +6083,7 @@ const bootstrap = async () => {
       console.log('Sample record has qtyAwb field:', !!window.records[0].qtyAwb);
       console.log('Sample record qtyAwb value:', window.records[0].qtyAwb);
       console.log('Sample record qty value:', window.records[0].qty);
-      
+
       // Tampilkan unique store names untuk debugging
       const uniqueStores = [...new Set(window.records.map(r => r.store).filter(Boolean))];
       console.log('Total unique stores:', uniqueStores.length);
@@ -5940,7 +6175,7 @@ const bootstrap = async () => {
         selectStoreBtn.disabled = true;
         selectStoreBtn.style.opacity = '0.5';
         selectStoreBtn.style.cursor = 'not-allowed';
-        
+
         // Setup tooltip untuk button disabled (hover aktif)
         if (selectStoreTooltip) {
           const tooltipEnterHandler = () => {
@@ -5955,10 +6190,10 @@ const bootstrap = async () => {
               selectStoreTooltip.style.display = 'none';
             }, 200);
           };
-          
+
           selectStoreBtn.addEventListener('mouseenter', tooltipEnterHandler);
           selectStoreBtn.addEventListener('mouseleave', tooltipLeaveHandler);
-          
+
           // Simpan reference untuk bisa dihapus nanti
           selectStoreBtn._tooltipEnterHandler = tooltipEnterHandler;
           selectStoreBtn._tooltipLeaveHandler = tooltipLeaveHandler;
@@ -5974,14 +6209,14 @@ const bootstrap = async () => {
       selectStoreBtn.addEventListener('click', () => {
         // Ambil marketplace yang dipilih
         const marketplaceValue = elements.revenueType ? elements.revenueType.value : 'All';
-        
+
         if (marketplaceValue === 'All' || marketplaceValue === '') {
           return; // Jangan tampilkan modal jika All
         }
 
         // Ambil daftar toko yang tersedia berdasarkan marketplace
         const availableStores = getAvailableStores(marketplaceValue);
-        
+
         if (availableStores.length === 0) {
           alert('Tidak ada toko tersedia untuk marketplace yang dipilih');
           return;
